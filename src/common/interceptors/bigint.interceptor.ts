@@ -1,21 +1,33 @@
-import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
+import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
-
-function convertBigInts(obj: any): any {
-    if (obj === null || typeof obj !== 'object') return obj;
-    if (typeof obj === 'bigint') return Number(obj); // o .toString() si prefieres string
-    if (Array.isArray(obj)) return obj.map(convertBigInts);
-    const result = {};
-    for (const [key, value] of Object.entries(obj)) {
-        result[key] = convertBigInts(value);
-    }
-    return result;
-}
 
 @Injectable()
 export class BigIntInterceptor implements NestInterceptor {
     intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-        return next.handle().pipe(map(data => convertBigInts(data)));
+        return next.handle().pipe(
+            map((data) => this.convertBigInt(data)),
+        );
+    }
+
+    private convertBigInt(value: any): any {
+        if (value === null || value === undefined) return value;
+        if (typeof value === 'bigint') {
+            // Convertir a número (puedes usar String si prefieres)
+            return Number(value);
+        }
+        if (Array.isArray(value)) {
+            return value.map((item) => this.convertBigInt(item));
+        }
+        if (typeof value === 'object') {
+            const newObj: any = {};
+            for (const key in value) {
+                if (Object.prototype.hasOwnProperty.call(value, key)) {
+                    newObj[key] = this.convertBigInt(value[key]);
+                }
+            }
+            return newObj;
+        }
+        return value;
     }
 }
