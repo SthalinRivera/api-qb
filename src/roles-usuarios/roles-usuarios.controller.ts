@@ -32,4 +32,6 @@ export class RolesUsuariosController {
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.rolesService.remove(id);
   }
+
+  
 }

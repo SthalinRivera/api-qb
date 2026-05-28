@@ -11,8 +11,13 @@ import { FrutasModule } from './frutas/frutas.module';
 import { VariedadesModule } from './variedades/variedades.module';
 import { CalidadesModule } from './calidades/calidades.module';
 import { TiposJabaModule } from './tipos-jaba/tipos-jaba.module';
+import { SedesModule } from './sedes/sedes.module';
+import { CamionesModule } from './camiones/camiones.module';
+import { MercadosModule } from './mercados/mercados.module';
+import { PuestoSeccionesModule } from './puesto-secciones/puesto-secciones.module';
+import { PuestosModule } from './puestos/puestos.module';
 @Module({
-  imports: [AuthModule, EmpresasModule, UsuariosModule, RolesUsuariosModule, ClientesModule, FrutasModule, VariedadesModule, CalidadesModule, TiposJabaModule],
+  imports: [AuthModule, EmpresasModule, UsuariosModule, RolesUsuariosModule, ClientesModule, FrutasModule, VariedadesModule, CalidadesModule, TiposJabaModule, SedesModule, CamionesModule, MercadosModule, PuestoSeccionesModule, PuestosModule],
   controllers: [AppController],
   providers: [AppService],
 })

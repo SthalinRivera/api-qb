@@ -42,4 +42,18 @@ export class UsuariosController {
   activar(@Param('id', ParseIntPipe) id: number) {
     return this.usuariosService.activarAcceso(id);
   }
+  @Post(':id/roles')
+  assignRole(@Param('id', ParseIntPipe) id: number, @Body('id_rol') rolId: number) {
+    return this.usuariosService.assignRole(id, rolId);
+  }
+
+  @Delete(':id/roles/:rolId')
+  removeRole(@Param('id', ParseIntPipe) id: number, @Param('rolId', ParseIntPipe) rolId: number) {
+    return this.usuariosService.removeRole(id, rolId);
+  }
+
+  @Get(':id/roles')
+  getRoles(@Param('id', ParseIntPipe) id: number) {
+    return this.usuariosService.getRolesByUser(id);
+  }
 }

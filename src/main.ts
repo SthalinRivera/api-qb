@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { BigIntInterceptor } from './common/interceptors/bigint.interceptor';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -23,7 +24,7 @@ async function bootstrap() {
 
   // 3. Interceptor global para convertir BigInt a Number (o string)
   app.useGlobalInterceptors(new BigIntInterceptor());
-
+  app.useGlobalFilters(new HttpExceptionFilter());
   // 4. Iniciar servidor
   const port = process.env.PORT ?? 4000;
   await app.listen(port);

@@ -112,13 +112,16 @@ export class UsuariosService {
   }
 
   async remove(id: number) {
-    // Desactivar usuario (soft delete), no eliminar físicamente
     try {
-      const updated = await this.prisma.usuarios.update({
+      // Primero eliminamos las relaciones en usuarios_roles (si las hay)
+      await this.prisma.usuarios_roles.deleteMany({
         where: { id_usuario: BigInt(id) },
-        data: { estado: false },
       });
-      return updated;
+      // Luego eliminamos el usuario
+      const deleted = await this.prisma.usuarios.delete({
+        where: { id_usuario: BigInt(id) },
+      });
+      return deleted;
     } catch (error) {
       if (error.code === 'P2025') throw new NotFoundException(`Usuario con ID ${id} no encontrado`);
       throw error;
@@ -149,5 +152,60 @@ export class UsuariosService {
       if (error.code === 'P2025') throw new NotFoundException(`Usuario con ID ${id} no encontrado`);
       throw error;
     }
+  }
+
+
+  async assignRole(usuarioId: number, rolId: number) {
+    const usuario = await this.prisma.usuarios.findUnique({
+      where: { id_usuario: BigInt(usuarioId) }
+    });
+    if (!usuario) throw new NotFoundException('Usuario no encontrado');
+
+    const rol = await this.prisma.roles_usuarios.findUnique({
+      where: { id_rol_usuario: BigInt(rolId) }
+    });
+    if (!rol) throw new NotFoundException('Rol no encontrado');
+
+    const existing = await this.prisma.usuarios_roles.findFirst({
+      where: {
+        id_usuario: BigInt(usuarioId),
+        id_rol_usuario: BigInt(rolId)
+      }
+    });
+    if (existing) throw new BadRequestException('El usuario ya tiene este rol');
+
+    return this.prisma.usuarios_roles.create({
+      data: {
+        id_usuario: BigInt(usuarioId),
+        id_rol_usuario: BigInt(rolId)
+      }
+    });
+  }
+
+  async removeRole(usuarioId: number, rolId: number) {
+    const relation = await this.prisma.usuarios_roles.findFirst({
+      where: {
+        id_usuario: BigInt(usuarioId),
+        id_rol_usuario: BigInt(rolId)
+      }
+    });
+    if (!relation) throw new NotFoundException('Relación usuario-rol no encontrada');
+
+    return this.prisma.usuarios_roles.delete({
+      where: { id_usuario_rol: relation.id_usuario_rol }
+    });
+  }
+
+  async getRolesByUser(usuarioId: number) {
+    const usuario = await this.prisma.usuarios.findUnique({
+      where: { id_usuario: BigInt(usuarioId) },
+      include: {
+        usuarios_roles: {
+          include: { roles_usuarios: true }
+        }
+      }
+    });
+    if (!usuario) throw new NotFoundException('Usuario no encontrado');
+    return usuario.usuarios_roles.map(ur => ur.roles_usuarios);
   }
 }

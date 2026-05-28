@@ -11,15 +11,12 @@ import { Prisma }
 
 type UsuarioCompleto =
     Prisma.usuariosGetPayload<{
-
         include: {
-
             usuarios_roles: {
                 include: {
                     roles_usuarios: true;
                 };
             };
-
             sedes: true;
         };
     }>;
@@ -120,7 +117,7 @@ export class AuthService {
                         apellidos: lastName || '',
                         avatar_url: user_metadata?.avatar_url || null,
                         telefono: user_metadata?.phone || null,
-                        estado_acceso: 'activo',
+                        estado_acceso: 'bloqueado',   // ✅ Cambiado de 'activo' a 'bloqueado'
                         estado: true,
                         id_sede: defaultSede.id_sede,
                         usuarios_roles: {
@@ -174,11 +171,18 @@ export class AuthService {
                 }
             }
 
+            // 🔐 Verificar si el usuario está bloqueado
+            if (userDb.estado_acceso === 'bloqueado') {
+                throw new UnauthorizedException(
+                    'Acceso denegado. Por favor, contacta al administrador.'
+                );
+            }
+
             const rol = userDb.usuarios_roles?.[0]?.roles_usuarios;
             return {
                 id: Number(userDb.id_usuario),
                 id_empresa: Number(userDb.id_empresa),
-                empresa: {                               // ← agregar este objeto
+                empresa: {
                     id: Number(defaultEmpresa.id_empresa),
                     razon_social: defaultEmpresa.razon_social,
                     nombre_comercial: defaultEmpresa.nombre_comercial,
