@@ -30,7 +30,7 @@ export class AuthService {
 
     async getProfile(authPayload: any) {
         try {
-            console.log('1️⃣ Inicio getProfile');
+
             const { user } = authPayload;
             if (!user) throw new UnauthorizedException('Usuario no encontrado');
             console.log('2️⃣ User extraído:', user.email);
@@ -77,7 +77,7 @@ export class AuthService {
                 throw new UnauthorizedException('Falta configuración inicial: sede');
             }
             console.log('8️⃣ Sede encontrada:', defaultSede.id_sede);
-
+            //console.log('8️⃣ Sede encontrada:', defaultSede.id_sede);
             // ------------------------------
             //  Buscar o crear usuario
             // ------------------------------
