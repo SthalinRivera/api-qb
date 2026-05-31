@@ -33,7 +33,7 @@ export class AuthService {
 
             const { user } = authPayload;
             if (!user) throw new UnauthorizedException('Usuario no encontrado');
-            console.log('2️⃣ User extraído:', user.email);
+            //console.log('2️⃣ User extraído:', user.email);
 
             const email = user.email;
             const user_metadata = user.user_metadata;
@@ -45,8 +45,7 @@ export class AuthService {
                 orderBy: { id_empresa: 'asc' },
             });
             if (!defaultEmpresa) throw new UnauthorizedException('No existe empresa configurada');
-            console.log('4️⃣ Empresa encontrada:', defaultEmpresa.id_empresa);
-
+            //
             // ------------------------------
             //  Buscar rol por defecto
             // ------------------------------
