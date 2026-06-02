@@ -8,7 +8,7 @@ import { AsignarPuestoDto } from './dto/asignar-puesto.dto';
 
 @Injectable()
 export class ClientesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async create(createClienteDto: CreateClienteDto) {
     // Verificar que la empresa existe
@@ -44,8 +44,6 @@ export class ClientesService {
         { nombres: { contains: buscar, mode: 'insensitive' } },
         { apellidos: { contains: buscar, mode: 'insensitive' } },
         { apodo: { contains: buscar, mode: 'insensitive' } },
-        { telefono: { contains: buscar } },
-        { email: { contains: buscar, mode: 'insensitive' } }, // Nota: clientes no tiene email en tu schema, pero si tuviera.
       ];
     }
     return this.prisma.clientes.findMany({
@@ -164,7 +162,57 @@ export class ClientesService {
       estado: cs.estado
     }));
   }
+  async updateSedeRelacion(clienteId: number, sedeId: number, tipoRelacion: string) {
+    const valoresValidos = ['emisor', 'receptor', 'ambos'];
 
+    if (!valoresValidos.includes(tipoRelacion)) {
+      throw new ConflictException('tipo_relacion debe ser: emisor, receptor o ambos');
+    }
+
+    const relation = await this.prisma.cliente_sede.findFirst({
+      where: {
+        id_cliente: BigInt(clienteId),
+        id_sede: BigInt(sedeId),
+        estado: true,
+      },
+    });
+
+    if (!relation) {
+      throw new NotFoundException('Relación cliente-sede no encontrada');
+    }
+
+    return this.prisma.cliente_sede.update({
+      where: { id_cliente_sede: relation.id_cliente_sede },
+      data: {
+        tipo_relacion: tipoRelacion,
+      },
+      include: {
+        clientes: true,
+        sedes: true,
+      },
+    });
+  }
+
+  async removeSede(clienteId: number, sedeId: number) {
+    const relation = await this.prisma.cliente_sede.findFirst({
+      where: {
+        id_cliente: BigInt(clienteId),
+        id_sede: BigInt(sedeId),
+        estado: true,
+      },
+    });
+
+    if (!relation) {
+      throw new NotFoundException('Relación cliente-sede no encontrada');
+    }
+
+    return this.prisma.cliente_sede.update({
+      where: { id_cliente_sede: relation.id_cliente_sede },
+      data: {
+        estado: false,
+      },
+    });
+  }
   // ------------------------------
   // Gestión de puestos (roles) del cliente
   // ------------------------------

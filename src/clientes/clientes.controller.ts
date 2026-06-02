@@ -10,7 +10,7 @@ import { AsignarPuestoDto } from './dto/asignar-puesto.dto';
 
 @Controller('clientes')
 export class ClientesController {
-  constructor(private readonly clientesService: ClientesService) {}
+  constructor(private readonly clientesService: ClientesService) { }
 
   @Post()
   create(@Body() createClienteDto: CreateClienteDto) {
@@ -47,7 +47,22 @@ export class ClientesController {
   associateSede(@Body() dto: ClienteSedeDto) {
     return this.clientesService.associateSede(dto);
   }
+  @Patch(':id/sedes/:sedeId')
+  updateSedeRelacion(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('sedeId', ParseIntPipe) sedeId: number,
+    @Body('tipo_relacion') tipoRelacion: string,
+  ) {
+    return this.clientesService.updateSedeRelacion(id, sedeId, tipoRelacion);
+  }
 
+  @Delete(':id/sedes/:sedeId')
+  removeSede(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('sedeId', ParseIntPipe) sedeId: number,
+  ) {
+    return this.clientesService.removeSede(id, sedeId);
+  }
   // Endpoints para puestos (roles) del cliente
   @Get(':id/puestos')
   getPuestos(@Param('id', ParseIntPipe) id: number) {
