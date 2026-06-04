@@ -1,4 +1,3 @@
-// src/clientes/clientes.controller.ts
 import {
   Controller, Get, Post, Body, Put, Param, Delete, Query, ParseIntPipe, Patch
 } from '@nestjs/common';
@@ -7,6 +6,7 @@ import { CreateClienteDto } from './dto/create-cliente.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
 import { ClienteSedeDto } from './dto/cliente-sede.dto';
 import { AsignarPuestoDto } from './dto/asignar-puesto.dto';
+import { QueryClientesDto } from './dto/query-clientes.dto';
 
 @Controller('clientes')
 export class ClientesController {
@@ -17,11 +17,25 @@ export class ClientesController {
     return this.clientesService.create(createClienteDto);
   }
 
+  // Endpoint paginado (principal)
   @Get()
-  findAll(@Query('buscar') buscar?: string) {
+  findAll(@Query() query: QueryClientesDto) {
+    return this.clientesService.findAllPaginated(query);
+  }
+
+  // Endpoint opcional sin paginación (para selects o exportaciones)
+  @Get('all')
+  findAllUnpaginated(@Query('buscar') buscar?: string) {
     return this.clientesService.findAll(buscar);
   }
 
+  // ✅ NUEVO: debe ir ANTES de @Get(':id')
+  @Get('asignaciones-puestos')
+  async findAllClientesPuestos() {
+    return this.clientesService.findAllClientesPuestos();
+  }
+
+  // ⚠️ Ruta dinámica: debe ir DESPUÉS de todas las rutas fijas
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.clientesService.findOne(id);
@@ -47,6 +61,7 @@ export class ClientesController {
   associateSede(@Body() dto: ClienteSedeDto) {
     return this.clientesService.associateSede(dto);
   }
+
   @Patch(':id/sedes/:sedeId')
   updateSedeRelacion(
     @Param('id', ParseIntPipe) id: number,
@@ -63,6 +78,7 @@ export class ClientesController {
   ) {
     return this.clientesService.removeSede(id, sedeId);
   }
+
   // Endpoints para puestos (roles) del cliente
   @Get(':id/puestos')
   getPuestos(@Param('id', ParseIntPipe) id: number) {

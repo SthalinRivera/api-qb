@@ -1,14 +1,14 @@
 import { IsString, IsOptional, IsBoolean, IsInt, IsIn } from 'class-validator';
-
 export class CreateSedeDto {
     @IsInt()
-    id_empresa: number;
+    id_empresa!: number;
 
     @IsString()
-    nombre: string;
+    nombre!: string;
 
     @IsOptional()
     @IsString()
+    
     @IsIn(['origen', 'destino', 'ambos'])
     tipo_sede?: string;
 

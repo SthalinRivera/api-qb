@@ -3,11 +3,11 @@ import { IsString, IsOptional, IsBoolean, IsInt, Min, MaxLength, IsPhoneNumber }
 
 export class CreateClienteDto {
   @IsInt()
-  id_empresa: number;
+  id_empresa!: number;
 
   @IsString()
   @MaxLength(100)
-  nombres: string;
+  nombres!: string;
 
   @IsOptional()
   @IsString()

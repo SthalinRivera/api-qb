@@ -1,13 +1,13 @@
-// src/clientes/dto/cliente-sede.dto.ts
-import { IsInt, IsString } from 'class-validator';
+import { IsInt, IsEnum } from 'class-validator';
+import { TipoRelacionClienteSede } from '../../../common/enums';
 
 export class ClienteSedeDto {
     @IsInt()
-    id_cliente: number;
+    id_cliente!: number;
 
     @IsInt()
-    id_sede: number;
+    id_sede!: number;
 
-    @IsString()
-    tipo_relacion: string; // ej: "envío", "recolección", etc.
+    @IsEnum(TipoRelacionClienteSede)
+    tipo_relacion!: TipoRelacionClienteSede;
 }

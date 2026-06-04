@@ -38,8 +38,13 @@ export class PuestosService {
   async findAll() {
     return this.prisma.puestos.findMany({
       where: { estado: true },
-      include: { empresas: true, lugares_operativos: true },
-      orderBy: { numero_puesto: 'asc' },
+      include: {
+        empresas: true,
+        lugares_operativos: {
+          include: { sedes: true }   // ✅ incluye sedes dentro del mercado
+        }
+      },
+      orderBy: { numero_puesto: 'asc' }
     });
   }
 

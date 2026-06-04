@@ -1,37 +1,37 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../config/prisma/prisma.service';
-import { CreateMercadoDto } from './dto/create-mercado.dto';
-import { UpdateMercadoDto } from './dto/update-mercado.dto';
+import { CreateLugarOperativoDto } from './dto/create-lugar-operativo.dto';
+import { UpdateLugarOperativoDto } from './dto/update-lugar-operativo.dto';
 
 @Injectable()
-export class MercadosService {
+export class LugarOperativoService {
   constructor(private readonly prisma: PrismaService) { }
 
-  async create(createMercadoDto: CreateMercadoDto) {
+  async create(createLugarOperativoDto: CreateLugarOperativoDto) {
     // Verificar empresa
     const empresa = await this.prisma.empresas.findUnique({
-      where: { id_empresa: BigInt(createMercadoDto.id_empresa) },
+      where: { id_empresa: BigInt(createLugarOperativoDto.id_empresa) },
     });
     if (!empresa) throw new NotFoundException('Empresa no encontrada');
 
     // Verificar sede
     const sede = await this.prisma.sedes.findFirst({
       where: {
-        id_sede: BigInt(createMercadoDto.id_sede),
-        id_empresa: BigInt(createMercadoDto.id_empresa),
+        id_sede: BigInt(createLugarOperativoDto.id_sede),
+        id_empresa: BigInt(createLugarOperativoDto.id_empresa),
       },
     });
     if (!sede) throw new NotFoundException('Sede no encontrada o no pertenece a la empresa');
 
     return this.prisma.lugares_operativos.create({
       data: {
-        id_empresa: BigInt(createMercadoDto.id_empresa),
-        id_sede: BigInt(createMercadoDto.id_sede),
-        nombre: createMercadoDto.nombre,
-        direccion_referencia: createMercadoDto.direccion_referencia,
-        observaciones: createMercadoDto.observaciones,
-        estado: createMercadoDto.estado ?? true,
-        tipo_lugar: 'mercado', // forzamos el tipo
+        id_empresa: BigInt(createLugarOperativoDto.id_empresa),
+        id_sede: BigInt(createLugarOperativoDto.id_sede),
+        nombre: createLugarOperativoDto.nombre,
+        direccion_referencia: createLugarOperativoDto.direccion_referencia,
+        observaciones: createLugarOperativoDto.observaciones,
+        estado: createLugarOperativoDto.estado ?? true,
+        tipo_lugar: createLugarOperativoDto.tipo_lugar,
       },
       include: { empresas: true, sedes: true },
     });
@@ -39,7 +39,7 @@ export class MercadosService {
 
   async findAll() {
     return this.prisma.lugares_operativos.findMany({
-      where: { tipo_lugar: 'mercado', estado: true },
+      where: { estado: true },
       include: { empresas: true, sedes: true },
       orderBy: { nombre: 'asc' },
     });
@@ -56,31 +56,30 @@ export class MercadosService {
     return mercado;
   }
 
-  async update(id: number, updateMercadoDto: UpdateMercadoDto) {
+  async update(id: number, updateLugarOperativoDto: UpdateLugarOperativoDto) {
     try {
-      // Primero verificamos que exista y sea mercado
       const existing = await this.prisma.lugares_operativos.findUnique({
         where: { id_lugar: BigInt(id) },
       });
-      if (!existing) throw new NotFoundException(`Mercado con ID ${id} no encontrado`);
-      if (existing.tipo_lugar !== 'mercado')
-        throw new NotFoundException(`El registro con ID ${id} no es un mercado`);
+      if (!existing) throw new NotFoundException(`Lugar operativo con ID ${id} no encontrado`);
 
+      // Eliminamos la condición que filtraba por 'mercado'
       const updated = await this.prisma.lugares_operativos.update({
         where: { id_lugar: BigInt(id) },
         data: {
-          id_empresa: updateMercadoDto.id_empresa ? BigInt(updateMercadoDto.id_empresa) : undefined,
-          id_sede: updateMercadoDto.id_sede ? BigInt(updateMercadoDto.id_sede) : undefined,
-          nombre: updateMercadoDto.nombre,
-          direccion_referencia: updateMercadoDto.direccion_referencia,
-          observaciones: updateMercadoDto.observaciones,
-          estado: updateMercadoDto.estado,
+          id_empresa: updateLugarOperativoDto.id_empresa ? BigInt(updateLugarOperativoDto.id_empresa) : undefined,
+          id_sede: updateLugarOperativoDto.id_sede ? BigInt(updateLugarOperativoDto.id_sede) : undefined,
+          nombre: updateLugarOperativoDto.nombre,
+          direccion_referencia: updateLugarOperativoDto.direccion_referencia,
+          observaciones: updateLugarOperativoDto.observaciones,
+          estado: updateLugarOperativoDto.estado,
+          tipo_lugar: updateLugarOperativoDto.tipo_lugar,
         },
         include: { empresas: true, sedes: true },
       });
       return updated;
     } catch (error: any) {
-      if (error.code === 'P2025') throw new NotFoundException(`Mercado con ID ${id} no encontrado`);
+      if (error.code === 'P2025') throw new NotFoundException(`Lugar operativo con ID ${id} no encontrado`);
       throw error;
     }
   }
