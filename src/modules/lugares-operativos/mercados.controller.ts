@@ -2,10 +2,11 @@ import { Controller, Get, Post, Body, Put, Param, Delete, ParseIntPipe } from '@
 import { MercadosService } from './mercados.service';
 import { CreateMercadoDto } from './dto/create-mercado.dto';
 import { UpdateMercadoDto } from './dto/update-mercado.dto';
+import { DetalleCargaService } from '../detalle-carga/detalle-carga.service';
 
 @Controller('mercados')
 export class MercadosController {
-  constructor(private readonly mercadosService: MercadosService) {}
+  constructor(private readonly mercadosService: MercadosService) { }
 
   @Post()
   create(@Body() createMercadoDto: CreateMercadoDto) {

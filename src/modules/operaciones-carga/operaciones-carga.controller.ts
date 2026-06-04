@@ -14,10 +14,13 @@ import { OperacionesCargaService } from './operaciones-carga.service';
 import { CreateOperacionCargaDto } from './dto/create-operaciones-carga.dto';
 import { UpdateOperacionCargaDto } from './dto/update-operaciones-carga.dto';
 import { QueryOperacionesCargaDto } from './dto/query-operaciones-carga.dto';
+import { DetalleCargaService } from '../detalle-carga/detalle-carga.service';
+import { CreateDetalleCargaDto } from '../detalle-carga/dto/create-detalle-carga.dto';
+import { CreateDetalleCargaForOperacionDto } from '../detalle-carga/dto/create-detalle-carga-for-operacion.dto';
 
 @Controller('operaciones-carga')
 export class OperacionesCargaController {
-  constructor(private readonly service: OperacionesCargaService) { }
+  constructor(private readonly service: OperacionesCargaService, private readonly detalleService: DetalleCargaService,) { }
 
   @Post()
   create(@Body() createDto: CreateOperacionCargaDto) {
@@ -53,5 +56,18 @@ export class OperacionesCargaController {
     @Body('estado') estado: string,
   ) {
     return this.service.changeState(id, estado);
+  }
+
+  @Get(':id/detalles')
+  findDetallesByOperacion(@Param('id', ParseIntPipe) id: number) {
+    return this.detalleService.findByOperacion(id);
+  }
+
+  @Post(':id/detalles')
+  createDetalle(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() createDto: CreateDetalleCargaForOperacionDto,
+  ) {
+    return this.detalleService.create(id, createDto);
   }
 }
