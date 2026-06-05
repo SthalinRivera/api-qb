@@ -62,7 +62,10 @@ export class OperacionesCargaController {
   findDetallesByOperacion(@Param('id', ParseIntPipe) id: number) {
     return this.detalleService.findByOperacion(id);
   }
-
+  @Post(':id/generar-guias')
+  async generarGuias(@Param('id', ParseIntPipe) id: number) {
+    return this.service.generarGuias(id);
+  }
   @Post(':id/detalles')
   createDetalle(
     @Param('id', ParseIntPipe) id: number,

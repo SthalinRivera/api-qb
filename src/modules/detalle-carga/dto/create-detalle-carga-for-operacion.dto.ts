@@ -35,6 +35,12 @@ export class CreateDetalleCargaForOperacionDto {
     observaciones?: string;
 
     @IsOptional()
+    @IsInt()
+    @Min(1)
+    id_cliente_receptor?: number;   // 👈 NUEVO
+
+
+    @IsOptional()
     @IsBoolean()
     requiere_retorno_jabas?: boolean;
 }

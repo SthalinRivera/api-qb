@@ -52,9 +52,23 @@ export class GuiasOperativasService {
       where: { id_guia: id },
       include: {
         usuarios: true,
-        items_reparto: true,
+        items_reparto: {
+          include: {
+            clientes: true,                 // 👈 cliente receptor
+            puestos: {
+              include: { lugares_operativos: true } // opcional
+            },
+            items_reparto_detalle: {        // 👈 detalles de calidad
+              include: {
+                detalle_carga_calidades: {
+                  include: { calidades: true }
+                }
+              }
+            }
+          }
+        },
         entregas: true,
-        // guia_operativa_detalle NO existe
+        empresas: true,
       },
     });
     if (!guia) throw new NotFoundException(`Guía operativa ID ${id} no encontrada`);

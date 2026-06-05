@@ -8,16 +8,33 @@ import { QueryEntregasDto } from './dto/query-entregas.dto';
 export class EntregasService {
   constructor(private prisma: PrismaService) { }
 
+  // ==================== AUXILIAR ====================
+  private parseHora(horaStr?: string): Date | null {
+    if (!horaStr || typeof horaStr !== 'string') return null;
+    const trimmed = horaStr.trim();
+    if (trimmed === '') return null;
+    let formatted = trimmed;
+    if (trimmed.match(/^\d{2}:\d{2}$/)) {
+      formatted = `${trimmed}:00`;
+    }
+    const date = new Date(`1970-01-01T${formatted}`);
+    return isNaN(date.getTime()) ? null : date;
+  }
+
+  // ==================== CRUD ====================
   async create(createDto: CreateEntregaDto) {
     await this.validateRelations(createDto);
-    return this.prisma.entregas.create({
+    const horaDate = this.parseHora(createDto.hora_entrega);
+
+    // 1. Crear la entrega
+    const entrega = await this.prisma.entregas.create({
       data: {
         id_empresa: 1,
         id_guia: createDto.id_guia,
         id_item_reparto: createDto.id_item_reparto,
         id_entregador: createDto.id_entregador,
         fecha_entrega: new Date(createDto.fecha_entrega),
-        hora_entrega: createDto.hora_entrega ? new Date(`1970-01-01T${createDto.hora_entrega}`) : null,
+        hora_entrega: horaDate,
         cantidad_entregada: createDto.cantidad_entregada,
         cantidad_rechazada: createDto.cantidad_rechazada ?? 0,
         estado_entrega: createDto.estado_entrega,
@@ -26,11 +43,43 @@ export class EntregasService {
         observaciones: createDto.observaciones,
       },
       include: {
-        guias_operativas: true,
-        items_reparto: true,
-        usuarios: true,
-      },
+        guias_operativas: {
+          include: {
+            items_reparto: {
+              include: {
+                detalle_carga: {
+                  select: { id_operacion: true }
+                }
+              }
+            }
+          }
+        }
+      }
     });
+
+    // 2. Obtener el id_operacion desde la guía
+    const operacionId = entrega.guias_operativas?.items_reparto?.detalle_carga?.id_operacion;
+    if (operacionId) {
+      // Verificar si todas las guías de la operación están firmadas
+      const guiasOperacion = await this.prisma.guias_operativas.findMany({
+        where: {
+          items_reparto: {
+            detalle_carga: { id_operacion: operacionId }
+          }
+        },
+        select: { estado: true }
+      });
+
+      const todasFirmadas = guiasOperacion.length > 0 && guiasOperacion.every(g => g.estado === 'firmada');
+      if (todasFirmadas) {
+        await this.prisma.operaciones_carga.update({
+          where: { id_operacion: operacionId },
+          data: { estado: 'completado' }
+        });
+      }
+    }
+
+    return entrega;
   }
 
   async findAll(query: QueryEntregasDto) {
@@ -76,7 +125,9 @@ export class EntregasService {
     await this.validateRelations(updateDto);
     const data: any = { ...updateDto };
     if (updateDto.fecha_entrega) data.fecha_entrega = new Date(updateDto.fecha_entrega);
-    if (updateDto.hora_entrega) data.hora_entrega = new Date(`1970-01-01T${updateDto.hora_entrega}`);
+    if (updateDto.hora_entrega) {
+      data.hora_entrega = this.parseHora(updateDto.hora_entrega);
+    }
     return this.prisma.entregas.update({
       where: { id_entrega: id },
       data,

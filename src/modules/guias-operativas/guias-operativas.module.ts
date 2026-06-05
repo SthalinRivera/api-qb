@@ -5,5 +5,6 @@ import { GuiasOperativasController } from './guias-operativas.controller';
 @Module({
   controllers: [GuiasOperativasController],
   providers: [GuiasOperativasService],
+  exports: [GuiasOperativasService],
 })
-export class GuiasOperativasModule {}
+export class GuiasOperativasModule { }
