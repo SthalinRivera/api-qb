@@ -1,37 +1,38 @@
+// lugares-operativos.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../config/prisma/prisma.service';
 import { CreateLugarOperativoDto } from './dto/create-lugar-operativo.dto';
 import { UpdateLugarOperativoDto } from './dto/update-lugar-operativo.dto';
 
 @Injectable()
-export class LugarOperativoService {
+export class LugaresOperativosService {
   constructor(private readonly prisma: PrismaService) { }
 
-  async create(createLugarOperativoDto: CreateLugarOperativoDto) {
+  async create(createDto: CreateLugarOperativoDto) {
     // Verificar empresa
     const empresa = await this.prisma.empresas.findUnique({
-      where: { id_empresa: BigInt(createLugarOperativoDto.id_empresa) },
+      where: { id_empresa: BigInt(createDto.id_empresa) },
     });
     if (!empresa) throw new NotFoundException('Empresa no encontrada');
 
     // Verificar sede
     const sede = await this.prisma.sedes.findFirst({
       where: {
-        id_sede: BigInt(createLugarOperativoDto.id_sede),
-        id_empresa: BigInt(createLugarOperativoDto.id_empresa),
+        id_sede: BigInt(createDto.id_sede),
+        id_empresa: BigInt(createDto.id_empresa),
       },
     });
     if (!sede) throw new NotFoundException('Sede no encontrada o no pertenece a la empresa');
 
     return this.prisma.lugares_operativos.create({
       data: {
-        id_empresa: BigInt(createLugarOperativoDto.id_empresa),
-        id_sede: BigInt(createLugarOperativoDto.id_sede),
-        nombre: createLugarOperativoDto.nombre,
-        direccion_referencia: createLugarOperativoDto.direccion_referencia,
-        observaciones: createLugarOperativoDto.observaciones,
-        estado: createLugarOperativoDto.estado ?? true,
-        tipo_lugar: createLugarOperativoDto.tipo_lugar,
+        id_empresa: BigInt(createDto.id_empresa),
+        id_sede: BigInt(createDto.id_sede),
+        nombre: createDto.nombre,
+        direccion_referencia: createDto.direccion_referencia,
+        observaciones: createDto.observaciones,
+        estado: createDto.estado ?? true,
+        tipo_lugar: createDto.tipo_lugar,
       },
       include: { empresas: true, sedes: true },
     });
@@ -46,34 +47,31 @@ export class LugarOperativoService {
   }
 
   async findOne(id: number) {
-    const mercado = await this.prisma.lugares_operativos.findUnique({
+    const lugar = await this.prisma.lugares_operativos.findUnique({
       where: { id_lugar: BigInt(id) },
       include: { empresas: true, sedes: true },
     });
-    if (!mercado) throw new NotFoundException(`Mercado con ID ${id} no encontrado`);
-    if (mercado.tipo_lugar !== 'mercado')
-      throw new NotFoundException(`El registro con ID ${id} no es un mercado`);
-    return mercado;
+    if (!lugar) throw new NotFoundException(`Lugar operativo con ID ${id} no encontrado`);
+    return lugar;
   }
 
-  async update(id: number, updateLugarOperativoDto: UpdateLugarOperativoDto) {
+  async update(id: number, updateDto: UpdateLugarOperativoDto) {
     try {
       const existing = await this.prisma.lugares_operativos.findUnique({
         where: { id_lugar: BigInt(id) },
       });
       if (!existing) throw new NotFoundException(`Lugar operativo con ID ${id} no encontrado`);
 
-      // Eliminamos la condición que filtraba por 'mercado'
       const updated = await this.prisma.lugares_operativos.update({
         where: { id_lugar: BigInt(id) },
         data: {
-          id_empresa: updateLugarOperativoDto.id_empresa ? BigInt(updateLugarOperativoDto.id_empresa) : undefined,
-          id_sede: updateLugarOperativoDto.id_sede ? BigInt(updateLugarOperativoDto.id_sede) : undefined,
-          nombre: updateLugarOperativoDto.nombre,
-          direccion_referencia: updateLugarOperativoDto.direccion_referencia,
-          observaciones: updateLugarOperativoDto.observaciones,
-          estado: updateLugarOperativoDto.estado,
-          tipo_lugar: updateLugarOperativoDto.tipo_lugar,
+          id_empresa: updateDto.id_empresa ? BigInt(updateDto.id_empresa) : undefined,
+          id_sede: updateDto.id_sede ? BigInt(updateDto.id_sede) : undefined,
+          nombre: updateDto.nombre,
+          direccion_referencia: updateDto.direccion_referencia,
+          observaciones: updateDto.observaciones,
+          estado: updateDto.estado,
+          tipo_lugar: updateDto.tipo_lugar,
         },
         include: { empresas: true, sedes: true },
       });
@@ -90,9 +88,7 @@ export class LugarOperativoService {
       const existing = await this.prisma.lugares_operativos.findUnique({
         where: { id_lugar: BigInt(id) },
       });
-      if (!existing) throw new NotFoundException(`Mercado con ID ${id} no encontrado`);
-      if (existing.tipo_lugar !== 'mercado')
-        throw new NotFoundException(`El registro con ID ${id} no es un mercado`);
+      if (!existing) throw new NotFoundException(`Lugar operativo con ID ${id} no encontrado`);
 
       const updated = await this.prisma.lugares_operativos.update({
         where: { id_lugar: BigInt(id) },
@@ -100,13 +96,12 @@ export class LugarOperativoService {
       });
       return updated;
     } catch (error: any) {
-      if (error.code === 'P2025') throw new NotFoundException(`Mercado con ID ${id} no encontrado`);
+      if (error.code === 'P2025') throw new NotFoundException(`Lugar operativo con ID ${id} no encontrado`);
       throw error;
     }
   }
 
   async findBySede(sedeId: number) {
-    // Verificar que la sede existe
     const sede = await this.prisma.sedes.findUnique({
       where: { id_sede: BigInt(sedeId) },
     });
@@ -115,7 +110,6 @@ export class LugarOperativoService {
     return this.prisma.lugares_operativos.findMany({
       where: {
         id_sede: BigInt(sedeId),
-        tipo_lugar: 'mercado',
         estado: true,
       },
       include: { empresas: true, sedes: true },

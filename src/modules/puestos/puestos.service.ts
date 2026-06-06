@@ -101,41 +101,5 @@ export class PuestosService {
     }
   }
 
-  // Puestos por mercado
-  async findByMercado(mercadoId: number) {
-    const mercado = await this.prisma.lugares_operativos.findFirst({
-      where: { id_lugar: BigInt(mercadoId), tipo_lugar: 'mercado' },
-    });
-    if (!mercado) throw new NotFoundException(`Mercado con ID ${mercadoId} no encontrado`);
 
-    return this.prisma.puestos.findMany({
-      where: { id_lugar: BigInt(mercadoId), estado: true },
-      include: { empresas: true, lugares_operativos: true },
-      orderBy: { numero_puesto: 'asc' },
-    });
-  }
-
-  // Puestos de un cliente (relación clientes_puestos)
-  async findByCliente(clienteId: number) {
-    const cliente = await this.prisma.clientes.findUnique({
-      where: { id_cliente: BigInt(clienteId) },
-    });
-    if (!cliente) throw new NotFoundException(`Cliente con ID ${clienteId} no encontrado`);
-
-    // Obtener puestos activos del cliente mediante la tabla intermedia
-    const puestos = await this.prisma.puestos.findMany({
-      where: {
-        clientes_puestos: {
-          some: {
-            id_cliente: BigInt(clienteId),
-            fecha_fin: null, // relación activa
-            estado: true,
-          },
-        },
-        estado: true,
-      },
-      include: { empresas: true, lugares_operativos: true },
-    });
-    return puestos;
-  }
 }

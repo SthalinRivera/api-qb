@@ -3,7 +3,7 @@ import { IsString, IsEmail, IsOptional, IsBoolean, IsInt, Min, Max } from 'class
 
 export class CreateUsuarioDto {
     @IsString()
-    nombres: string;
+    nombres!: string;
 
     @IsOptional()
     @IsString()
@@ -14,7 +14,7 @@ export class CreateUsuarioDto {
     telefono?: string;
 
     @IsEmail()
-    email: string;
+    email!: string;
 
     @IsOptional()
     @IsString()
@@ -33,7 +33,7 @@ export class CreateUsuarioDto {
     estado?: boolean; // true=activo, false=desactivado
 
     @IsInt()
-    id_empresa: number;
+    id_empresa!: number;
 
     @IsOptional()
     @IsInt()
