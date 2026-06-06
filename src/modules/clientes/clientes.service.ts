@@ -73,7 +73,7 @@ export class ClientesService {
    * @returns Objeto con data, total, page, limit, totalPages.
    */
   async findAllPaginated(query: QueryClientesDto) {
-    const { page = 1, limit = 10, buscar, estado = 'todos' } = query;
+    const { page = 1, limit = 10, buscar, estado = 'todos', tipo_relacion = 'todos' } = query;
     const skip = (page - 1) * limit;
     const take = limit;
 
@@ -90,6 +90,11 @@ export class ClientesService {
 
     if (estado !== 'todos') {
       where.estado = estado === 'true';
+    }
+    if (tipo_relacion !== 'todos') {
+      where.cliente_sede = {
+        some: { tipo_relacion: tipo_relacion, estado: true }
+      };
     }
 
     const [data, total] = await Promise.all([
@@ -391,7 +396,15 @@ export class ClientesService {
       include: {
         clientes_puestos: {
           where: { fecha_fin: null, estado: true },
-          include: { puestos: true }
+          include: {
+            puestos: {
+              include: {
+                lugares_operativos: {   // 🔥 INCLUIR LUGARES OPERATIVOS
+                  include: { sedes: true }
+                }
+              }
+            }
+          }
         }
       }
     });

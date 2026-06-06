@@ -21,4 +21,7 @@ export class QueryClientesDto {
     @IsOptional()
     @IsIn(['true', 'false', 'todos'])
     estado?: string = 'todos';
+    @IsOptional()
+    @IsIn(['emisor', 'receptor', 'ambos', 'todos'])
+    tipo_relacion?: string = 'todos';
 }
