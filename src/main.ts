@@ -35,7 +35,16 @@ async function bootstrap() {
     .addBearerAuth() // si usas autenticación JWT
     .build();
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document); // Ruta: /api/docs
+  SwaggerModule.setup('api/docs', app, document, {
+    customCssUrl: [
+      'https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.10.3/swagger-ui.css',
+      'https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.10.3/swagger-ui-standalone-preset.css',
+    ],
+    customJs: [
+      'https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.10.3/swagger-ui-bundle.js',
+      'https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.10.3/swagger-ui-standalone-preset.js',
+    ],
+  });
 
   // 5. Iniciar servidor
   const port = process.env.PORT ?? 4000;
