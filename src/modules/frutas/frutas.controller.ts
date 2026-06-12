@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Query, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Query, ParseIntPipe, Put } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiParam, ApiBody } from '@nestjs/swagger';
 import { FrutasService } from './frutas.service';
 import { CreateFrutaDto } from './dto/create-fruta.dto';
@@ -30,7 +30,7 @@ export class FrutasController {
     return this.frutasService.findOne(id);
   }
 
-  @Patch(':id')
+  @Put(':id')
   @ApiOperation({ summary: 'Actualizar parcialmente una fruta' })
   @ApiParam({ name: 'id', type: Number })
   update(@Param('id', ParseIntPipe) id: number, @Body() updateFrutaDto: UpdateFrutaDto) {

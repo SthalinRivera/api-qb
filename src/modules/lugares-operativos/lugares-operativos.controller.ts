@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Query, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Query, ParseIntPipe, Put } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { LugaresOperativosService } from './lugares-operativos.service';
 import { CreateLugarOperativoDto } from './dto/create-lugar-operativo.dto';
@@ -29,7 +29,7 @@ export class LugaresOperativosController {
     return this.lugaresOperativosService.findOne(id);
   }
 
-  @Patch(':id')
+  @Put(':id')
   @ApiOperation({ summary: 'Actualizar un lugar operativo' })
   update(@Param('id', ParseIntPipe) id: number, @Body() updateLugarOperativoDto: UpdateLugarOperativoDto) {
     return this.lugaresOperativosService.update(id, updateLugarOperativoDto);

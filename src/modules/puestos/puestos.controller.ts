@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Query, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Query, ParseIntPipe, Put } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { PuestosService } from './puestos.service';
 import { CreatePuestoDto } from './dto/create-puesto.dto';
@@ -29,7 +29,7 @@ export class PuestosController {
     return this.puestosService.findOne(id);
   }
 
-  @Patch(':id')
+  @Put(':id')
   @ApiOperation({ summary: 'Actualizar un puesto' })
   update(@Param('id', ParseIntPipe) id: number, @Body() updatePuestoDto: UpdatePuestoDto) {
     return this.puestosService.update(id, updatePuestoDto);

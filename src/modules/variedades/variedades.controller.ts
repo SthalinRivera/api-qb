@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Query, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Query, ParseIntPipe, Put } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { VariedadesService } from './variedades.service';
 import { CreateVariedadDto } from './dto/create-variedade.dto';
@@ -29,7 +29,7 @@ export class VariedadesController {
     return this.variedadesService.findOne(id);
   }
 
-  @Patch(':id')
+  @Put(':id')
   @ApiOperation({ summary: 'Actualizar una variedad' })
   update(@Param('id', ParseIntPipe) id: number, @Body() updateVariedadDto: UpdateVariedadDto) {
     return this.variedadesService.update(id, updateVariedadDto);

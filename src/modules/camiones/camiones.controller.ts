@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Query, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Query, ParseIntPipe, Put } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { CamionesService } from './camiones.service';
 import { CreateCamionDto } from './dto/create-camione.dto';
@@ -29,7 +29,7 @@ export class CamionesController {
     return this.camionesService.findOne(id);
   }
 
-  @Patch(':id')
+  @Put(':id')
   @ApiOperation({ summary: 'Actualizar un camión' })
   update(@Param('id', ParseIntPipe) id: number, @Body() updateCamionDto: UpdateCamionDto) {
     return this.camionesService.update(id, updateCamionDto);

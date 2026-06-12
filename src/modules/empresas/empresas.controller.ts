@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, ParseIntPipe, Put } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/swagger';
 import { EmpresasService } from './empresas.service';
 import { CreateEmpresaDto } from './dto/create-empresa.dto';
@@ -34,7 +34,7 @@ export class EmpresasController {
     return this.empresasService.findOne(id);
   }
 
-  @Patch(':id')
+  @Put(':id')
   @ApiOperation({ summary: 'Actualizar datos de una empresa' })
   @ApiParam({ name: 'id', type: Number })
   @ApiBody({ type: UpdateEmpresaDto })
@@ -44,7 +44,7 @@ export class EmpresasController {
   }
 
   @Patch(':id/estado')
-    @ApiOperation({ summary: 'Activar o desactivar una empresa (eliminación lógica)' })
+  @ApiOperation({ summary: 'Activar o desactivar una empresa (eliminación lógica)' })
   @ApiParam({ name: 'id', type: Number })
   @ApiBody({ type: UpdateStateDto })
   @ApiResponse({ status: 200, description: 'Estado actualizado', type: Empresa })

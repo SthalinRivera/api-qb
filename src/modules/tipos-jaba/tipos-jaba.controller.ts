@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Query, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Query, ParseIntPipe, Put } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { TiposJabaService } from './tipos-jaba.service';
 import { CreateTipoJabaDto } from './dto/create-tipos-jaba.dto';
@@ -29,7 +29,7 @@ export class TiposJabaController {
     return this.tiposJabaService.findOne(id);
   }
 
-  @Patch(':id')
+  @Put(':id')
   @ApiOperation({ summary: 'Actualizar un tipo de jaba' })
   update(@Param('id', ParseIntPipe) id: number, @Body() updateTipoJabaDto: UpdateTipoJabaDto) {
     return this.tiposJabaService.update(id, updateTipoJabaDto);

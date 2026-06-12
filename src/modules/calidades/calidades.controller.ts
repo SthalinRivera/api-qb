@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Query, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Query, ParseIntPipe, Put } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { CalidadesService } from './calidades.service';
 import { CreateCalidadDto } from './dto/create-calidade.dto';
@@ -29,7 +29,7 @@ export class CalidadesController {
     return this.calidadesService.findOne(id);
   }
 
-  @Patch(':id')
+  @Put(':id')
   @ApiOperation({ summary: 'Actualizar una calidad' })
   update(@Param('id', ParseIntPipe) id: number, @Body() updateCalidadDto: UpdateCalidadDto) {
     return this.calidadesService.update(id, updateCalidadDto);
