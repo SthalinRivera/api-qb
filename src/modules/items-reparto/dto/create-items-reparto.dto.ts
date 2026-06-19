@@ -1,17 +1,13 @@
-import { IsInt, IsOptional, IsString, Min, Max } from 'class-validator';
+import { IsInt, IsOptional, IsString, Min, IsPositive, IsIn } from 'class-validator';
 
 export class CreateItemRepartoDto {
     @IsInt()
-    @Min(1)
     id_detalle_carga!: number;
 
-    @IsOptional()
     @IsInt()
-    @Min(1)
-    id_cliente_receptor?: number;
+    id_cliente_receptor!: number;
 
     @IsInt()
-    @Min(1)
     id_puesto!: number;
 
     @IsInt()
@@ -20,7 +16,7 @@ export class CreateItemRepartoDto {
 
     @IsOptional()
     @IsInt()
-    @Min(0)
+    @Min(1)
     orden_entrega?: number;
 
     @IsOptional()
@@ -29,5 +25,5 @@ export class CreateItemRepartoDto {
 
     @IsOptional()
     @IsString()
-    seccion?: 'A' | 'B' | 'C';
+    seccion?: string;
 }

@@ -1,14 +1,14 @@
-import { IsNumber, IsOptional, Min, IsDecimal } from 'class-validator';
+import { IsInt, IsOptional, IsNumber, Min, IsPositive } from 'class-validator';
 
 export class CreateItemsRepartoDetalleDto {
-    @IsNumber()
+    @IsInt()
     id_detalle_carga_calidad!: number;
 
-    @IsNumber()
+    @IsInt()
     @Min(1)
     cantidad!: number;
 
     @IsOptional()
-    @IsDecimal()
+    @IsNumber()
     precio_unitario?: number;
 }

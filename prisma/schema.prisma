@@ -282,9 +282,11 @@ model guias_operativas {
   observaciones   String?
   created_at      DateTime?     @default(now()) @db.Timestamptz(6)
   id_item_reparto BigInt
+  id_puesto       BigInt?
   entregas        entregas[]
   empresas        empresas      @relation(fields: [id_empresa], references: [id_empresa], onDelete: Cascade, onUpdate: NoAction)
   items_reparto   items_reparto @relation(fields: [id_item_reparto], references: [id_item_reparto], onDelete: NoAction, onUpdate: NoAction)
+  puestos         puestos?      @relation(fields: [id_puesto], references: [id_puesto], onDelete: NoAction, onUpdate: NoAction)
   usuarios        usuarios?     @relation(fields: [id_repartidor], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
   incidencias     incidencias[]
 
@@ -477,6 +479,7 @@ model puestos {
   estado             Boolean?           @default(true)
   created_at         DateTime?          @default(now()) @db.Timestamptz(6)
   clientes_puestos   clientes_puestos[]
+  guias_operativas   guias_operativas[]
   items_reparto      items_reparto[]
   jabas_por_cobrar   jabas_por_cobrar[]
   empresas           empresas           @relation(fields: [id_empresa], references: [id_empresa], onDelete: Cascade, onUpdate: NoAction)

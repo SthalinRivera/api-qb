@@ -206,63 +206,212 @@ export class OperacionesCargaService {
     }
   }
 
-  /**
-   * Genera guías operativas para todos los items de reparto de una operación
-   * que aún no tengan una guía asociada.
-   * @param operacionId - ID de la operación de carga
-   * @returns Lista de guías creadas
-   */
+
+
+  async findDetallesRepartoPendientes(operacionId: number) {
+    // 1. Obtener todos los detalles de reparto con calidades e items asociados
+    const detalles = await this.prisma.detalle_carga.findMany({
+      where: {
+        id_operacion: operacionId,
+        es_reparto: true,
+        detalle_carga_calidades: { some: {} }, // al menos una calidad
+      },
+      include: {
+        clientes: true, // emisor
+        detalle_carga_calidades: {
+          include: { calidades: true },
+        },
+        items_reparto: {
+          include: {
+            items_reparto_detalle: true, // para saber cuánto se ha asignado de cada calidad
+            clientes: true,
+            puestos: true,
+          },
+        },
+      },
+    });
+
+    // 2. Filtrar aquellos que tienen calidades sin asignar completamente
+    const pendientes = detalles.filter((detalle) => {
+      // Si no tiene items, está pendiente completamente
+      if (detalle.items_reparto.length === 0) return true;
+
+      // Recorrer cada calidad y verificar si está completamente asignada
+      const calidades = detalle.detalle_carga_calidades;
+      for (const calidad of calidades) {
+        // Sumar todas las cantidades asignadas de esta calidad en todos los items_reparto_detalle
+        let totalAsignado = 0;
+        for (const item of detalle.items_reparto) {
+          for (const det of item.items_reparto_detalle || []) {
+            if (det.id_detalle_carga_calidad === calidad.id_detalle_carga_calidad) {
+              totalAsignado += det.cantidad;
+            }
+          }
+        }
+        // Si la suma asignada es menor que la cantidad total de la calidad, está pendiente
+        if (totalAsignado < calidad.cantidad) {
+          return true;
+        }
+      }
+      // Si todas las calidades están completamente asignadas, no está pendiente
+      return false;
+    });
+
+    return pendientes;
+  }
+
+  // operaciones-carga.service.ts
+  async findAllDetallesRepartoPendientes() {
+    // Obtener todos los detalles de reparto con calidades (sin filtrar por items_reparto)
+    const detalles = await this.prisma.detalle_carga.findMany({
+      where: {
+        id_empresa: 1,
+        es_reparto: true,
+        detalle_carga_calidades: { some: {} },
+      },
+      include: {
+        clientes: true,
+        detalle_carga_calidades: {
+          include: { calidades: true },
+        },
+        items_reparto: {
+          include: {
+            items_reparto_detalle: true,
+          },
+        },
+        operaciones_carga: {
+          include: {
+            camiones: true,
+            sedes_operaciones_carga_id_sede_origenTosedes: true,
+          },
+        },
+      },
+    });
+
+    // Filtrar y enriquecer con saldo por calidad
+    const pendientesConSaldo = detalles
+      .map((detalle) => {
+        // Para cada calidad, calcular cuánto ya está asignado
+        const calidadesConSaldo = detalle.detalle_carga_calidades.map((calidad) => {
+          // Sumar cantidades ya asignadas en items_reparto_detalle para esta calidad
+          let asignado = 0;
+          for (const item of detalle.items_reparto) {
+            for (const det of item.items_reparto_detalle || []) {
+              if (det.id_detalle_carga_calidad === calidad.id_detalle_carga_calidad) {
+                asignado += det.cantidad;
+              }
+            }
+          }
+          const saldo = calidad.cantidad - asignado;
+          return {
+            ...calidad,
+            cantidad_asignada: asignado,
+            saldo: saldo,
+          };
+        });
+
+        // Filtrar calidades con saldo > 0 (aún pendientes)
+        const calidadesPendientes = calidadesConSaldo.filter((c) => c.saldo > 0);
+
+        // Si no quedan calidades pendientes, el detalle no debe aparecer
+        if (calidadesPendientes.length === 0) return null;
+
+        // Reemplazar las calidades originales por las enriquecidas
+        return {
+          ...detalle,
+          detalle_carga_calidades: calidadesPendientes,
+          // También podemos agregar un campo de resumen para el frontend
+          _resumen: {
+            total_calidades: detalle.detalle_carga_calidades.length,
+            pendientes: calidadesPendientes.length,
+            completadas: detalle.detalle_carga_calidades.length - calidadesPendientes.length,
+          },
+        };
+      })
+      .filter((d) => d !== null); // eliminar detalles sin calidades pendientes
+
+    return pendientesConSaldo;
+  }
+
+  // operaciones-carga.service.ts
   async generarGuias(operacionId: number) {
-    // 1. Verificar operación y obtener datos necesarios
+    // 1. Obtener operación
     const operacion = await this.prisma.operaciones_carga.findUnique({
       where: { id_operacion: operacionId },
-      select: { id_repartidor_asignado: true, estado: true }, // ✅
+      select: { id_repartidor_asignado: true, estado: true },
     });
     if (!operacion) {
       throw new NotFoundException(`Operación con ID ${operacionId} no encontrada`);
     }
 
-    // 2. Obtener IDs de items de reparto que ya tienen guía
-    const guiasExistentes = await this.prisma.guias_operativas.findMany({
-      select: { id_item_reparto: true },
-    });
-    const idsConGuia = guiasExistentes
-      .map(g => g.id_item_reparto)
-      .filter((id): id is bigint => id !== null);
-
-    // 3. Items sin guía
+    // 2. Obtener todos los items sin guía con sus puestos
     const itemsSinGuia = await this.prisma.items_reparto.findMany({
       where: {
         detalle_carga: { id_operacion: operacionId },
-        id_item_reparto: { notIn: idsConGuia },
+        guias_operativas: { none: {} },
       },
-      include: { clientes: true, puestos: true, detalle_carga: true },
+      include: {
+        puestos: true,
+        clientes: true,
+        detalle_carga: true,
+        items_reparto_detalle: {
+          include: {
+            detalle_carga_calidades: {
+              include: { calidades: true }
+            }
+          }
+        }
+      },
     });
 
     if (itemsSinGuia.length === 0) {
-      throw new BadRequestException('No hay items de reparto pendientes de guía');
+      throw new BadRequestException('No hay items pendientes de guía');
     }
 
-    const guiasCreadas: Awaited<ReturnType<typeof this.guiasService.create>>[] = [];
+    // 3. Agrupar por puesto (usando Number() para convertir bigint)
+    const gruposPorPuesto = new Map<number, typeof itemsSinGuia>();
+    for (const item of itemsSinGuia) {
+      const key = Number(item.id_puesto);
+      if (!gruposPorPuesto.has(key)) {
+        gruposPorPuesto.set(key, []);
+      }
+      gruposPorPuesto.get(key)!.push(item);
+    }
+
+    // 4. Generar UNA guía por puesto (no una por item)
+    const guiasCreadas: any[] = [];
     let contador = 1;
 
-    for (const item of itemsSinGuia) {
-      const numeroGuia = `G-${operacionId}-${contador++}`;
-      const fechaEmision = new Date().toISOString().split('T')[0];
+    for (const [puestoId, items] of gruposPorPuesto) {
+      const puesto = items[0].puestos;
+      const numeroGuia = `G-${operacionId}-P${puesto?.numero_puesto || 'SIN'}-${contador++}`;
 
-      const nuevaGuia = await this.guiasService.create({
-        numero_guia: numeroGuia,
-        fecha_emision: fechaEmision,
-        id_repartidor: operacion.id_repartidor_asignado ? Number(operacion.id_repartidor_asignado) : undefined,
-        observaciones: item.observaciones ?? undefined,
-        id_item_reparto: Number(item.id_item_reparto),
-        estado: 'emitida',
+      // Crear la guía y asociar TODOS los items de este puesto
+      // Para mantener compatibilidad con el modelo actual, creamos una guía por el primer item,
+      // pero luego actualizamos la relación con todos los items (si el modelo lo soporta)
+      // O mejor: creamos la guía y luego vinculamos todos los items a ella.
+      // operaciones-carga.service.ts
+      const nuevaGuia = await this.prisma.guias_operativas.create({
+        data: {
+          id_empresa: 1,
+          numero_guia: numeroGuia,
+          fecha_emision: new Date(),
+          id_repartidor: operacion.id_repartidor_asignado ? Number(operacion.id_repartidor_asignado) : undefined,
+          estado: 'emitida',
+          observaciones: `Guía para puesto ${puesto?.numero_puesto} (${items.length} items)`,
+          id_item_reparto: Number(items[0].id_item_reparto),
+          id_puesto: Number(puestoId), // 🔹 Asignar el puesto
+        },
       });
+
+      // 🔹 Si tu modelo soporta múltiples items por guía, aquí deberías vincularlos todos.
+      // Como el modelo actual solo tiene un id_item_reparto, esta es la solución temporal.
+      // Para una solución completa, necesitas modificar el modelo para soportar muchos a muchos.
 
       guiasCreadas.push(nuevaGuia);
     }
 
-    // 4. Actualizar estado de la operación si estaba 'en_proceso'
+    // 5. Actualizar estado de la operación
     if (operacion.estado === 'en_curso') {
       await this.prisma.operaciones_carga.update({
         where: { id_operacion: operacionId },

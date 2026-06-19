@@ -46,32 +46,108 @@ export class GuiasOperativasService {
       orderBy: { fecha_emision: 'desc' },
     });
   }
-
+  // guias-operativas.service.ts
+  // guias-operativas.service.ts
   async findOne(id: number) {
     const guia = await this.prisma.guias_operativas.findUnique({
       where: { id_guia: id },
       include: {
         usuarios: true,
+        empresas: true,
         items_reparto: {
           include: {
-            clientes: true,                 // 👈 cliente receptor
+            clientes: true,
             puestos: {
-              include: { lugares_operativos: true } // opcional
+              include: { lugares_operativos: true },
             },
-            items_reparto_detalle: {        // 👈 detalles de calidad
+            detalle_carga: {
+              include: {
+                operaciones_carga: {
+                  include: {
+                    camiones: true,
+                    sedes_operaciones_carga_id_sede_origenTosedes: true,
+                    sedes_operaciones_carga_id_sede_destinoTosedes: true,
+                  },
+                },
+                clientes: true,        // 👈 emisor
+                frutas: true,          // 👈 fruta
+                tipos_jaba: true,      // 👈 tipo de jaba
+                variedades: true,      // 👈 variedad
+              },
+            },
+            items_reparto_detalle: {
               include: {
                 detalle_carga_calidades: {
-                  include: { calidades: true }
-                }
-              }
-            }
-          }
+                  include: { calidades: true },
+                },
+              },
+            },
+          },
         },
-        entregas: true,
-        empresas: true,
+        entregas: {
+          include: { usuarios: true },
+        },
       },
     });
-    if (!guia) throw new NotFoundException(`Guía operativa ID ${id} no encontrada`);
+
+    if (!guia) throw new NotFoundException(`Guía ${id} no encontrada`);
+
+    const primerItem = guia.items_reparto;
+    if (primerItem?.detalle_carga?.id_operacion && primerItem?.id_puesto) {
+      const operacionId = primerItem.detalle_carga.id_operacion;
+      const puestoId = primerItem.id_puesto;
+
+      // Obtener TODOS los items del mismo puesto y operación
+      const itemsDelPuesto = await this.prisma.items_reparto.findMany({
+        where: {
+          id_puesto: puestoId,
+          detalle_carga: {
+            id_operacion: operacionId,
+          },
+        },
+        include: {
+          clientes: true,
+          puestos: true,
+          items_reparto_detalle: {
+            include: {
+              detalle_carga_calidades: {
+                include: { calidades: true },
+              },
+            },
+          },
+        },
+      });
+
+      // Combinar todas las calidades de todos los items del puesto
+      const todasLasCalidades = itemsDelPuesto.flatMap(item => item.items_reparto_detalle || []);
+
+      // Calcular total asignado (suma de cantidades de todos los items)
+      const totalAsignado = itemsDelPuesto.reduce((sum, item) => sum + item.cantidad_asignada, 0);
+
+      // Clientes únicos del puesto
+      const clientesUnicos = [...new Set(
+        itemsDelPuesto.map(item => item.clientes?.nombres).filter(Boolean)
+      )];
+      const totalGeneral = todasLasCalidades.reduce((sum, det) => {
+        const cantidad = Number(det.cantidad);
+        const precio = Number(det.precio_unitario || 0);
+        return sum + (precio * cantidad);
+      }, 0);
+      // 🔹 Agregamos propiedades virtuales sin sobrescribir el objeto original
+      return {
+        ...guia,
+        items_reparto: {
+          ...guia.items_reparto,
+          _todas_las_calidades: todasLasCalidades,
+          _total_asignado_agrupado: totalAsignado,
+          _clientes_agrupados: clientesUnicos,
+          _items_del_puesto: itemsDelPuesto,
+          _total_general: totalGeneral, // ✅ NUEVO campo
+          _cantidad_total_items: todasLasCalidades.reduce((sum, det) => sum + det.cantidad, 0), // ✅ opcional
+        },
+      };
+    }
+
     return guia;
   }
 

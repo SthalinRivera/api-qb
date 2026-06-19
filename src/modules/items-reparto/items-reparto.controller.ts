@@ -1,5 +1,14 @@
 import {
-  Controller, Get, Post, Body, Put, Param, Delete, Patch, Query, ParseIntPipe,
+  Controller,
+  Get,
+  Post,
+  Body,
+  Put,
+  Param,
+  Delete,
+  Patch,
+  Query,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { ItemsRepartoService } from './items-reparto.service';
 import { CreateItemRepartoDto } from './dto/create-items-reparto.dto';
@@ -7,14 +16,22 @@ import { UpdateItemRepartoDto } from './dto/update-items-reparto.dto';
 import { QueryItemsRepartoDto } from './dto/query-items-reparto.dto';
 import { UpdateItemsRepartoDetalleDto } from './dto/update-items-reparto-detalle.dto';
 import { CreateItemsRepartoDetalleDto } from './dto/create-items-reparto-detalle.dto';
+import { CreateItemRepartoConDetallesDto } from './dto/create-items-reparto-con-detalles.dto';
+import { CreateItemsRepartoMultipleDto } from './dto/create-items-reparto-multiple.dto';
 
 @Controller('items-reparto')
 export class ItemsRepartoController {
   constructor(private readonly service: ItemsRepartoService) { }
 
+  // ==================== ÍTEMS PRINCIPALES ====================
   @Post()
   create(@Body() dto: CreateItemRepartoDto) {
     return this.service.create(dto);
+  }
+
+  @Post('from-calidades')
+  createFromCalidades(@Body() dto: CreateItemRepartoConDetallesDto) {
+    return this.service.createFromCalidades(dto);
   }
 
   @Get()
@@ -37,36 +54,35 @@ export class ItemsRepartoController {
     return this.service.remove(id);
   }
 
-  @Patch(':id/estado')
-  changeState(@Param('id', ParseIntPipe) id: number, @Body('estado') estado: string) {
-    return this.service.changeState(id, estado);
-  }
-
-
+  // ==================== DETALLES ====================
   @Post(':id/detalle')
-  async addDetalle(
+  addDetalle(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: CreateItemsRepartoDetalleDto,
   ) {
     return this.service.addDetalle(id, dto);
   }
-
+  @Post('from-calidades-multiple')
+  createMultipleFromCalidades(@Body() dto: CreateItemsRepartoMultipleDto) {
+    return this.service.createMultipleFromCalidades(dto);
+  }
   @Get('detalle')
-  async findAllDetalles() {
+  findAllDetalles() {
     return this.service.findAllDetalles();
   }
+
   @Get(':id/detalle')
-  async findDetallesByItem(@Param('id', ParseIntPipe) id: number) {
+  findDetallesByItem(@Param('id', ParseIntPipe) id: number) {
     return this.service.findAllDetalles(id);
   }
 
   @Get('detalle/:detalleId')
-  async findOneDetalle(@Param('detalleId', ParseIntPipe) detalleId: number) {
+  findOneDetalle(@Param('detalleId', ParseIntPipe) detalleId: number) {
     return this.service.findOneDetalle(detalleId);
   }
 
   @Put('detalle/:detalleId')
-  async updateDetalle(
+  updateDetalle(
     @Param('detalleId', ParseIntPipe) detalleId: number,
     @Body() dto: UpdateItemsRepartoDetalleDto,
   ) {
@@ -74,7 +90,13 @@ export class ItemsRepartoController {
   }
 
   @Delete('detalle/:detalleId')
-  async removeDetalle(@Param('detalleId', ParseIntPipe) detalleId: number) {
+  removeDetalle(@Param('detalleId', ParseIntPipe) detalleId: number) {
     return this.service.removeDetalle(detalleId);
+  }
+
+  // ==================== ENDPOINTS ANIDADOS (útiles para frontend) ====================
+  @Get('detalle-carga/:detalleId')
+  findByDetalleCarga(@Param('detalleId', ParseIntPipe) detalleId: number) {
+    return this.service.findByDetalleCarga(detalleId);
   }
 }
