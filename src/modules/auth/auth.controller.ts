@@ -7,7 +7,7 @@ export class AuthController {
     constructor(private readonly authService: AuthService) { }
 
     @Get('profile')
-    @UseGuards(SupabaseAuthGuard)  // 👈 activa el guard
+    @UseGuards(SupabaseAuthGuard) 
     async getProfile(@Req() req: any) {
         return this.authService.getProfile({ user: req.user });
     }

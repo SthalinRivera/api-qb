@@ -4,6 +4,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { BigIntInterceptor } from './common/interceptors/bigint.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { DecimalInterceptor } from './common/interceptors/decimal.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -26,7 +27,8 @@ async function bootstrap() {
   // 3. Interceptor y filtro global
   app.useGlobalInterceptors(new BigIntInterceptor());
   app.useGlobalFilters(new HttpExceptionFilter());
-
+  // Interceptor para convertir Decimal de Prisma a número
+  app.useGlobalInterceptors(new DecimalInterceptor());
   // 4. Configuración de Swagger (OpenAPI)
   const config = new DocumentBuilder()
     .setTitle('API de Gestión Empresarial')

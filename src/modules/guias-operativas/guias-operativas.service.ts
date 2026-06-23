@@ -46,8 +46,6 @@ export class GuiasOperativasService {
       orderBy: { fecha_emision: 'desc' },
     });
   }
-  // guias-operativas.service.ts
-  // guias-operativas.service.ts
   async findOne(id: number) {
     const guia = await this.prisma.guias_operativas.findUnique({
       where: { id_guia: id },

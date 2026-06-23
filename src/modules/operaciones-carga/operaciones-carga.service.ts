@@ -10,14 +10,10 @@ import { GuiasOperativasService } from '../guias-operativas/guias-operativas.ser
 export class OperacionesCargaService {
   constructor(
     private prisma: PrismaService,
-    private guiasService: GuiasOperativasService, // 👈 Inyecta el servicio de guías
+    private guiasService: GuiasOperativasService,
   ) { }
 
-  /**
-   * Crea una nueva operación de carga.
-   * @param createDto - Datos de la operación (fecha, camión, sedes, etc.)
-   * @returns Operación creada con sus relaciones (camión, sedes, usuarios)
-   */
+
   async create(createDto: CreateOperacionCargaDto) {
     // Verificar que todas las relaciones (sede, camión, usuarios) existan en la base de datos
     await this.validateRelations(createDto);
@@ -45,11 +41,7 @@ export class OperacionesCargaService {
     });
   }
 
-  /**
-   * Lista todas las operaciones de carga con filtros opcionales (estado, fecha).
-   * @param query - Objeto con posibles filtros: estado, fecha
-   * @returns Lista de operaciones ordenadas por fecha descendente
-   */
+
   async findAll(query: QueryOperacionesCargaDto) {
     const { estado, fecha } = query;
     const where: any = {};
@@ -76,11 +68,7 @@ export class OperacionesCargaService {
     });
   }
 
-  /**
-   * Obtiene una operación por su ID, incluyendo detalles de carga, frutas, variedades, etc.
-   * @param id - ID de la operación
-   * @throws NotFoundException si no existe
-   */
+
   async findOne(id: number) {
     const operacion = await this.prisma.operaciones_carga.findUnique({
       where: { id_operacion: id },
@@ -108,12 +96,7 @@ export class OperacionesCargaService {
     return operacion;
   }
 
-  /**
-   * Actualiza los datos de una operación.
-   * @param id - ID de la operación
-   * @param updateDto - Datos a modificar (todos opcionales)
-   * @throws BadRequestException si no se envía ningún campo
-   */
+
   async update(id: number, updateDto: UpdateOperacionCargaDto) {
     await this.findOne(id); // Asegura que la operación existe
 
@@ -147,10 +130,7 @@ export class OperacionesCargaService {
     });
   }
 
-  /**
-   * Cancela una operación (soft delete) cambiando su estado a 'cancelada'.
-   * @param id - ID de la operación
-   */
+
   async remove(id: number) {
     await this.findOne(id);
     return this.prisma.operaciones_carga.update({
@@ -159,11 +139,7 @@ export class OperacionesCargaService {
     });
   }
 
-  /**
-   * Cambia el estado de una operación (pendiente, en_proceso, completada, cancelada).
-   * @param id - ID de la operación
-   * @param newState - Nuevo estado (debe estar en la lista de permitidos)
-   */
+
   async changeState(id: number, newState: string) {
     const allowedStates = ['pendiente', 'en_proceso', 'completada', 'cancelada'];
     if (!allowedStates.includes(newState)) {
@@ -176,11 +152,6 @@ export class OperacionesCargaService {
     });
   }
 
-  /**
-   * Valida que todas las entidades referenciadas (sedes, camión, usuarios) existan en la base de datos.
-   * @param dto - Objeto que puede contener los ids a validar
-   * @param excludeId - Parámetro no usado (se mantiene por compatibilidad)
-   */
   private async validateRelations(dto: any, excludeId?: number) {
     const { id_sede_origen, id_sede_destino, id_camion, id_encargado_carga, id_repartidor_asignado } = dto;
 
@@ -260,7 +231,6 @@ export class OperacionesCargaService {
     return pendientes;
   }
 
-  // operaciones-carga.service.ts
   async findAllDetallesRepartoPendientes() {
     // Obtener todos los detalles de reparto con calidades (sin filtrar por items_reparto)
     const detalles = await this.prisma.detalle_carga.findMany({
@@ -333,7 +303,6 @@ export class OperacionesCargaService {
     return pendientesConSaldo;
   }
 
-  // operaciones-carga.service.ts
   async generarGuias(operacionId: number) {
     // 1. Obtener operación
     const operacion = await this.prisma.operaciones_carga.findUnique({

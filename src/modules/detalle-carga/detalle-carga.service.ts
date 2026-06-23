@@ -218,6 +218,23 @@ export class DetalleCargaService {
    * Verifica que la calidad exista y que no esté ya asociada.
    */
   async addCalidad(detalleId: number, dto: CreateDetalleCalidadDto) {
+    // ---- LOG 1: Ver qué llega al servicio ----
+    console.log('[addCalidad] DTO recibido:', JSON.stringify(dto, null, 2));
+    console.log('[addCalidad] precio_unitario raw:', dto.precio_unitario);
+    console.log('[addCalidad] tipo de precio_unitario:', typeof dto.precio_unitario);
+
+    // ---- Validación extra: asegurar que sea número (o null) ----
+    let precioFinal: number | null = null;
+    if (dto.precio_unitario !== undefined && dto.precio_unitario !== null) {
+      const num = Number(dto.precio_unitario);
+      if (!isNaN(num) && num >= 0) {
+        precioFinal = num;
+      } else {
+        console.warn('[addCalidad] precio_unitario inválido, se usará null');
+      }
+    }
+    console.log('[addCalidad] precioFinal a guardar:', precioFinal);
+
     // 1. Verificar que el detalle exista
     const detalle = await this.findOne(detalleId);
 
@@ -247,14 +264,13 @@ export class DetalleCargaService {
         id_detalle_carga: detalleId,
         id_calidad: dto.id_calidad,
         cantidad: dto.cantidad,
-        precio_unitario: dto.precio_unitario,
+        precio_unitario: precioFinal, // <-- USAR EL VALOR SANEADO
       },
       include: { calidades: true },
     });
 
     // 5. Si el detalle requiere reparto, vincular con items_reparto_detalle
     if (detalle.es_reparto) {
-      // Buscar el items_reparto asociado a este detalle
       const itemReparto = await this.prisma.items_reparto.findFirst({
         where: { id_detalle_carga: detalleId },
       });
@@ -265,8 +281,7 @@ export class DetalleCargaService {
             id_item_reparto: itemReparto.id_item_reparto,
             id_detalle_carga_calidad: nuevaCalidad.id_detalle_carga_calidad,
             cantidad: dto.cantidad,
-            precio_unitario: dto.precio_unitario,
-            // subtotal se calcula automáticamente con el generado por defecto (en la BD)
+            precio_unitario: precioFinal, // <-- MISMO VALOR SANEADO
             observaciones: null,
           },
         });

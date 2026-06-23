@@ -1,4 +1,5 @@
-import { IsInt, Min, IsDecimal, IsOptional } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsInt, Min, IsDecimal, IsOptional, IsNumber } from 'class-validator';
 
 export class CreateDetalleCalidadDto {
     @IsInt()
@@ -10,6 +11,8 @@ export class CreateDetalleCalidadDto {
     cantidad!: number;
 
     @IsOptional()
-    @IsDecimal()
+    @IsNumber()
+    @Min(0)
+    @Type(() => Number)
     precio_unitario?: number;
 }

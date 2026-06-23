@@ -21,9 +21,10 @@ import { ItemsRepartoModule } from './modules/items-reparto/items-reparto.module
 import { GuiasOperativasModule } from './modules/guias-operativas/guias-operativas.module';
 import { EntregasModule } from './modules/entregas/entregas.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { IncidenciasModule } from './modules/incidencias/incidencias.module';
 
 @Module({
-  imports: [AuthModule, EmpresasModule, UsuariosModule, RolesUsuariosModule, ClientesModule, FrutasModule, VariedadesModule, CalidadesModule, TiposJabaModule, SedesModule, CamionesModule, LugaresOperativosModule, PuestosModule, OperacionesCargaModule, DetalleCargaModule, ItemsRepartoModule, GuiasOperativasModule, EntregasModule, DashboardModule],
+  imports: [AuthModule, EmpresasModule, UsuariosModule, RolesUsuariosModule, ClientesModule, FrutasModule, VariedadesModule, CalidadesModule, TiposJabaModule, SedesModule, CamionesModule, LugaresOperativosModule, PuestosModule, OperacionesCargaModule, DetalleCargaModule, ItemsRepartoModule, GuiasOperativasModule, EntregasModule, DashboardModule, IncidenciasModule],
   controllers: [AppController],
   providers: [AppService],
 })
