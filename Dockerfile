@@ -1,27 +1,41 @@
+# Etapa de construcción
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# 👇 Recibimos DIRECT_URL como argumento de construcción
+ARG DIRECT_URL
+ENV DIRECT_URL=$DIRECT_URL
+
+# Copiamos dependencias y los archivos de Prisma (incluyendo prisma.config.ts)
+COPY package*.json ./
+COPY prisma ./prisma/
+
+# Instalamos dependencias (incluye devDependencies para compilar)
+RUN npm ci
+
+# Generamos el cliente de Prisma (necesita DIRECT_URL)
+RUN npx prisma generate
+
+# Copiamos el resto del código fuente (incluye prisma.config.ts ya copiado)
+COPY . .
+
+# Compilamos la aplicación (genera dist/)
+RUN npm run build
+
+# --------------------------------------------
+# Etapa de producción (imagen final liviana)
 FROM node:20-alpine
 
 WORKDIR /app
 
-# 1. Copiar solo los archivos de dependencias
-COPY package*.json ./
+# Copiamos solo lo necesario
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/package*.json ./
+# También copiamos el prisma.config.ts si quieres tenerlo (aunque no es estrictamente necesario en runtime, pero por si acaso)
+COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 
-# 2. Instalar dependencias
-RUN npm install
-
-# 3. Copiar el esquema de Prisma (necesario para generar el cliente)
-COPY prisma ./prisma
-
-# 4. (NUEVO) Generar el cliente de Prisma
-RUN npx prisma generate
-
-# 5. Copiar el resto del código (incluye src, etc.)
-COPY . .
-
-# 6. Ahora compilar NestJS (ya conoce los tipos de Prisma)
-RUN npm run build
-
-# 7. Exponer el puerto
 EXPOSE 4000
-
-# 8. Comando de inicio (ya no hace falta prisma generate)
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main"]
+CMD ["node", "dist/main"]
