@@ -11,92 +11,158 @@ import { UpdateDetalleCalidadDto } from './dto/update-detalle-calidad.dto';
 export class DetalleCargaService {
   constructor(private prisma: PrismaService) { }
 
+  // detalle-carga.service.ts (fragmento)
+
   async create(operacionId: number, dto: CreateDetalleCargaForOperacionDto) {
-    // 1. Verificar operación
     const operacion = await this.prisma.operaciones_carga.findUnique({
       where: { id_operacion: operacionId },
     });
-    if (!operacion) {
-      throw new NotFoundException(`Operación con ID ${operacionId} no existe`);
-    }
+    if (!operacion) throw new NotFoundException(`Operación con ID ${operacionId} no existe`);
 
-    // 2. Validar relaciones base
     await this.validateRelations(dto);
 
-    // 3. Crear detalle de carga (sin item de reparto aún)
-    const detalle = await this.prisma.detalle_carga.create({
-      data: {
-        id_empresa: 1,
-        id_operacion: operacionId,
-        id_cliente_emisor: dto.id_cliente_emisor,
-        id_fruta: dto.id_fruta,
-        id_variedad: dto.id_variedad,
-        id_tipo_jaba: dto.id_tipo_jaba,
-        cantidad_jabas: dto.cantidad_jabas,
-        es_reparto: dto.es_reparto ?? false,
-        instruccion_reparto: dto.instruccion_reparto,
-        observaciones: dto.observaciones,
-        requiere_retorno_jabas: dto.requiere_retorno_jabas ?? false,
-      },
-      include: {
-        clientes: true,
-        frutas: true,
-        variedades: true,
-        tipos_jaba: true,
-      },
-    });
-
-    // 4. Crear item de reparto solo si es entrega manual (es_reparto = false)
-    let itemReparto: Awaited<ReturnType<typeof this.prisma.items_reparto.create>> | null = null;
-    if (dto.es_reparto === false) {
-      if (!dto.id_cliente_receptor || !dto.id_puesto) {
-        throw new BadRequestException('Para entrega manual debe especificar cliente receptor y puesto');
-      }
-
-      // Validar relación cliente-puesto activa
-      const relacion = await this.prisma.clientes_puestos.findFirst({
-        where: {
-          id_cliente: dto.id_cliente_receptor,
-          id_puesto: dto.id_puesto,
-          fecha_fin: null,
-          estado: true,
-        },
-        select: { seccion: true },
-      });
-      if (!relacion) {
-        throw new BadRequestException(`El cliente receptor no tiene el puesto ${dto.id_puesto} activo.`);
-      }
-
-      const seccionFinal = dto.id_seccion ?? relacion.seccion;
-
-      itemReparto = await this.prisma.items_reparto.create({
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Crear detalle de carga
+      const detalle = await tx.detalle_carga.create({
         data: {
           id_empresa: 1,
-          id_detalle_carga: detalle.id_detalle_carga,
-          id_cliente_receptor: dto.id_cliente_receptor,
-          id_puesto: dto.id_puesto,
-          cantidad_asignada: detalle.cantidad_jabas,
-          seccion: seccionFinal,
-          orden_entrega: null,
-          observaciones: dto.instruccion_reparto,
+          id_operacion: operacionId,
+          id_cliente_emisor: dto.id_cliente_emisor,
+          id_fruta: dto.id_fruta,
+          id_variedad: dto.id_variedad,
+          id_tipo_jaba: dto.id_tipo_jaba,
+          cantidad_jabas: dto.cantidad_jabas,
+          es_reparto: dto.es_reparto ?? false,
+          instruccion_reparto: dto.instruccion_reparto,
+          observaciones: dto.observaciones,
+          requiere_retorno_jabas: dto.requiere_retorno_jabas ?? false,
         },
-        include: { clientes: true, puestos: true },
       });
-    }
 
-    // 5. Actualizar estado de la operación si estaba pendiente
-    if (operacion.estado === 'pendiente') {
-      await this.prisma.operaciones_carga.update({
-        where: { id_operacion: operacionId },
-        data: { estado: 'en_curso' },
-      });
-    }
+      let itemReparto: any = null;
+      let entrega: any = null;
+      // 2. Si requiere retorno -> jabas_por_pagar
+      if (detalle.requiere_retorno_jabas) {
+        await tx.jabas_por_pagar.create({
+          data: {
+            id_empresa: 1,
+            id_detalle_carga: detalle.id_detalle_carga,
+            id_cliente_emisor: detalle.id_cliente_emisor,
+            id_tipo_jaba: detalle.id_tipo_jaba,
+            fecha_origen: new Date(),
+            cantidad_debida: detalle.cantidad_jabas,
+            cantidad_pagada: 0,
+            saldo_pendiente: detalle.cantidad_jabas,
+            estado: 'pendiente',
+            observaciones: 'Generado automáticamente al crear el detalle',
+          },
+        });
+      }
 
-    // 6. Retornar el detalle junto con el item (si existe)
-    return {
-      ...detalle,
-      item_reparto: itemReparto,
-    };
+      // 3. Si es entrega manual
+      if (dto.es_reparto === false) {
+        if (!dto.id_cliente_receptor || !dto.id_puesto) {
+          throw new BadRequestException('Para entrega manual debe especificar cliente receptor y puesto');
+        }
+
+        const relacion = await tx.clientes_puestos.findFirst({
+          where: {
+            id_cliente: dto.id_cliente_receptor,
+            id_puesto: dto.id_puesto,
+            fecha_fin: null,
+            estado: true,
+          },
+          select: { seccion: true },
+        });
+        if (!relacion) {
+          throw new BadRequestException(`El cliente receptor no tiene el puesto ${dto.id_puesto} activo.`);
+        }
+
+        const seccionFinal = dto.id_seccion ?? relacion.seccion;
+
+        // Crear item de reparto
+        itemReparto = await tx.items_reparto.create({
+          data: {
+            id_empresa: 1,
+            id_detalle_carga: detalle.id_detalle_carga,
+            id_cliente_receptor: dto.id_cliente_receptor,
+            id_puesto: dto.id_puesto,
+            cantidad_asignada: detalle.cantidad_jabas,
+            seccion: seccionFinal,
+            orden_entrega: null,
+            observaciones: dto.instruccion_reparto,
+          },
+          include: { clientes: true, puestos: true },
+        });
+
+        // Crear guía operativa
+        const guia = await tx.guias_operativas.create({
+          data: {
+            id_empresa: 1,
+            numero_guia: `G-${Date.now()}-${itemReparto.id_item_reparto}`,
+            fecha_emision: new Date(),
+            id_repartidor: null,
+            estado: 'emitida',
+            observaciones: 'Guía generada automáticamente para entrega manual',
+            id_item_reparto: itemReparto.id_item_reparto,
+            id_puesto: dto.id_puesto,
+          },
+        });
+
+        // Crear entrega
+        entrega = await tx.entregas.create({
+          data: {
+            id_empresa: 1,
+            id_guia: guia.id_guia,
+            id_item_reparto: itemReparto.id_item_reparto,
+            id_entregador: null,
+            fecha_entrega: new Date(),
+            hora_entrega: null,
+            cantidad_entregada: 0,
+            cantidad_rechazada: 0,
+            estado_entrega: 'pendiente',
+            firma_recibido: false,
+            nombre_recibe: null,
+            observaciones: 'Entrega pendiente generada automáticamente',
+          },
+        });
+
+        // Si requiere retorno -> jabas_por_cobrar
+        if (detalle.requiere_retorno_jabas) {
+          await tx.jabas_por_cobrar.create({
+            data: {
+              id_empresa: 1,
+              id_entrega: entrega.id_entrega,
+              id_item_reparto: itemReparto.id_item_reparto,
+              id_cliente_receptor: dto.id_cliente_receptor,
+              id_puesto: dto.id_puesto,
+              id_tipo_jaba: detalle.id_tipo_jaba,
+              fecha_origen: new Date(),
+              cantidad_debida: itemReparto.cantidad_asignada,
+              cantidad_recuperada: 0,
+              saldo_pendiente: itemReparto.cantidad_asignada,
+              estado: 'pendiente',
+              seccion: seccionFinal,
+              observaciones: 'Generado automáticamente al crear entrega manual',
+            },
+          });
+        }
+      }
+
+      // Actualizar estado de operación
+      if (operacion.estado === 'pendiente') {
+        await tx.operaciones_carga.update({
+          where: { id_operacion: operacionId },
+          data: { estado: 'en_curso' },
+        });
+      }
+
+      return {
+        ...detalle,
+        item_reparto: itemReparto,
+        entrega: entrega,
+      };
+    });
   }
 
   /**

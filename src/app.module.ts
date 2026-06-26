@@ -22,9 +22,10 @@ import { GuiasOperativasModule } from './modules/guias-operativas/guias-operativ
 import { EntregasModule } from './modules/entregas/entregas.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { IncidenciasModule } from './modules/incidencias/incidencias.module';
+import { JabasModule } from './modules/jabas/jabas.module';
 
 @Module({
-  imports: [AuthModule, EmpresasModule, UsuariosModule, RolesUsuariosModule, ClientesModule, FrutasModule, VariedadesModule, CalidadesModule, TiposJabaModule, SedesModule, CamionesModule, LugaresOperativosModule, PuestosModule, OperacionesCargaModule, DetalleCargaModule, ItemsRepartoModule, GuiasOperativasModule, EntregasModule, DashboardModule, IncidenciasModule],
+  imports: [AuthModule, EmpresasModule, UsuariosModule, RolesUsuariosModule, ClientesModule, FrutasModule, VariedadesModule, CalidadesModule, TiposJabaModule, SedesModule, CamionesModule, LugaresOperativosModule, PuestosModule, OperacionesCargaModule, DetalleCargaModule, ItemsRepartoModule, GuiasOperativasModule, EntregasModule, DashboardModule, IncidenciasModule, JabasModule],
   controllers: [AppController],
   providers: [AppService],
 })
