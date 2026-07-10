@@ -84,6 +84,11 @@ export class OperacionesCargaController {
     return this.service.changeState(id, estado);
   }
 
+  @Post(':id/finalizar')
+  async finalizar(@Param('id', ParseIntPipe) id: number) {
+    return this.service.finalizar(id);
+  }
+
   @Post(':id/generar-guias')
   async generarGuias(@Param('id', ParseIntPipe) id: number) {
     return this.service.generarGuias(id);

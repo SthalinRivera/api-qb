@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../config/prisma/prisma.service';
 import { CreateCalidadDto } from './dto/create-calidade.dto';
 import { UpdateCalidadDto } from './dto/update-calidade.dto';
@@ -24,8 +24,10 @@ export class CalidadesService {
     });
   }
 
-  async findAll(estado?: boolean) {
-    const where: any = {};
+  async findAll(empresaId: number, estado?: boolean) {
+    const where: any = {
+      id_empresa: BigInt(empresaId),
+    };
     if (estado !== undefined) where.estado = estado;
     return this.prisma.calidades.findMany({
       where,
@@ -34,9 +36,12 @@ export class CalidadesService {
     });
   }
 
-  async findOne(id: number) {
-    const calidad = await this.prisma.calidades.findUnique({
-      where: { id_calidad: BigInt(id) },
+  async findOne(id: number, empresaId?: number) {
+    const where: any = { id_calidad: BigInt(id) };
+    if (empresaId) where.id_empresa = BigInt(empresaId);
+
+    const calidad = await this.prisma.calidades.findFirst({
+      where,
       include: { empresas: true },
     });
     if (!calidad) throw new NotFoundException(`Calidad con ID ${id} no encontrada`);
@@ -44,6 +49,16 @@ export class CalidadesService {
   }
 
   async update(id: number, updateCalidadDto: UpdateCalidadDto) {
+    // Verificar que la calidad pertenece a la empresa
+    const existing = await this.prisma.calidades.findUnique({
+      where: { id_calidad: BigInt(id) },
+    });
+    if (!existing) throw new NotFoundException(`Calidad con ID ${id} no encontrada`);
+
+    if (updateCalidadDto.id_empresa && existing.id_empresa !== BigInt(updateCalidadDto.id_empresa)) {
+      throw new ForbiddenException('No tiene permiso para modificar esta calidad');
+    }
+
     try {
       const updated = await this.prisma.calidades.update({
         where: { id_calidad: BigInt(id) },
@@ -51,7 +66,6 @@ export class CalidadesService {
           nombre: updateCalidadDto.nombre,
           descripcion: updateCalidadDto.descripcion,
           estado: updateCalidadDto.estado,
-          id_empresa: updateCalidadDto.id_empresa ? BigInt(updateCalidadDto.id_empresa) : undefined,
         },
         include: { empresas: true },
       });
@@ -62,7 +76,15 @@ export class CalidadesService {
     }
   }
 
-  async changeState(id: number, estado: boolean) {
+  async changeState(id: number, estado: boolean, empresaId?: number) {
+    // Verificar que la calidad pertenece a la empresa
+    if (empresaId) {
+      const existing = await this.prisma.calidades.findFirst({
+        where: { id_calidad: BigInt(id), id_empresa: BigInt(empresaId) },
+      });
+      if (!existing) throw new NotFoundException(`Calidad con ID ${id} no encontrada`);
+    }
+
     return this.update(id, { estado });
   }
 }

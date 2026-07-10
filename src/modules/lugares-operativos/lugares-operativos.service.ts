@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../config/prisma/prisma.service';
 import { CreateLugarOperativoDto } from './dto/create-lugar-operativo.dto';
 import { UpdateLugarOperativoDto } from './dto/update-lugar-operativo.dto';
@@ -35,8 +35,8 @@ export class LugaresOperativosService {
     });
   }
 
-  async findAll(estado?: boolean) {
-    const where: any = {};
+  async findAll(empresaId: number, estado?: boolean) {
+    const where: any = { id_empresa: BigInt(empresaId) };
     if (estado !== undefined) where.estado = estado;
     return this.prisma.lugares_operativos.findMany({
       where,
@@ -45,9 +45,12 @@ export class LugaresOperativosService {
     });
   }
 
-  async findOne(id: number) {
-    const lugar = await this.prisma.lugares_operativos.findUnique({
-      where: { id_lugar: BigInt(id) },
+  async findOne(id: number, empresaId?: number) {
+    const where: any = { id_lugar: BigInt(id) };
+    if (empresaId) where.id_empresa = BigInt(empresaId);
+
+    const lugar = await this.prisma.lugares_operativos.findFirst({
+      where,
       include: { empresas: true, sedes: true },
     });
     if (!lugar) throw new NotFoundException(`Lugar operativo con ID ${id} no encontrado`);
@@ -55,11 +58,19 @@ export class LugaresOperativosService {
   }
 
   async update(id: number, updateDto: UpdateLugarOperativoDto) {
+    const existing = await this.prisma.lugares_operativos.findUnique({
+      where: { id_lugar: BigInt(id) },
+    });
+    if (!existing) throw new NotFoundException(`Lugar operativo con ID ${id} no encontrado`);
+
+    if (updateDto.id_empresa && existing.id_empresa !== BigInt(updateDto.id_empresa)) {
+      throw new ForbiddenException('No tiene permiso para modificar este registro');
+    }
+
     try {
       const updated = await this.prisma.lugares_operativos.update({
         where: { id_lugar: BigInt(id) },
         data: {
-          id_empresa: updateDto.id_empresa ? BigInt(updateDto.id_empresa) : undefined,
           id_sede: updateDto.id_sede ? BigInt(updateDto.id_sede) : undefined,
           nombre: updateDto.nombre,
           direccion_referencia: updateDto.direccion_referencia,
@@ -76,7 +87,13 @@ export class LugaresOperativosService {
     }
   }
 
-  async changeState(id: number, estado: boolean) {
+  async changeState(id: number, estado: boolean, empresaId?: number) {
+    if (empresaId) {
+      const existing = await this.prisma.lugares_operativos.findFirst({
+        where: { id_lugar: BigInt(id), id_empresa: BigInt(empresaId) },
+      });
+      if (!existing) throw new NotFoundException(`Lugar operativo con ID ${id} no encontrado`);
+    }
     return this.update(id, { estado });
   }
 

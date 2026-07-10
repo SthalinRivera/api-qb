@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../config/prisma/prisma.service';
 import { CreateTipoJabaDto } from './dto/create-tipos-jaba.dto';
 import { UpdateTipoJabaDto } from './dto/update-tipos-jaba.dto';
@@ -25,19 +25,21 @@ export class TiposJabaService {
     });
   }
 
-  async findAll(estado?: boolean) {
-    const where: any = {};
+  async findAll(empresaId: number, estado?: boolean) {
+    const where: any = { id_empresa: BigInt(empresaId) };
     if (estado !== undefined) where.estado = estado;
     return this.prisma.tipos_jaba.findMany({
       where,
-      include: { empresas: true },
       orderBy: { nombre: 'asc' },
     });
   }
 
-  async findOne(id: number) {
-    const tipo = await this.prisma.tipos_jaba.findUnique({
-      where: { id_tipo_jaba: BigInt(id) },
+  async findOne(id: number, empresaId?: number) {
+    const where: any = { id_tipo_jaba: BigInt(id) };
+    if (empresaId) where.id_empresa = BigInt(empresaId);
+
+    const tipo = await this.prisma.tipos_jaba.findFirst({
+      where,
       include: { empresas: true },
     });
     if (!tipo) throw new NotFoundException(`Tipo de jaba con ID ${id} no encontrado`);
@@ -45,6 +47,15 @@ export class TiposJabaService {
   }
 
   async update(id: number, updateTipoJabaDto: UpdateTipoJabaDto) {
+    const existing = await this.prisma.tipos_jaba.findUnique({
+      where: { id_tipo_jaba: BigInt(id) },
+    });
+    if (!existing) throw new NotFoundException(`Tipo de jaba con ID ${id} no encontrado`);
+
+    if (updateTipoJabaDto.id_empresa && existing.id_empresa !== BigInt(updateTipoJabaDto.id_empresa)) {
+      throw new ForbiddenException('No tiene permiso para modificar este registro');
+    }
+
     try {
       const updated = await this.prisma.tipos_jaba.update({
         where: { id_tipo_jaba: BigInt(id) },
@@ -53,7 +64,6 @@ export class TiposJabaService {
           tipo_material: updateTipoJabaDto.tipo_material,
           descripcion: updateTipoJabaDto.descripcion,
           estado: updateTipoJabaDto.estado,
-          id_empresa: updateTipoJabaDto.id_empresa ? BigInt(updateTipoJabaDto.id_empresa) : undefined,
         },
         include: { empresas: true },
       });
@@ -64,7 +74,13 @@ export class TiposJabaService {
     }
   }
 
-  async changeState(id: number, estado: boolean) {
+  async changeState(id: number, estado: boolean, empresaId?: number) {
+    if (empresaId) {
+      const existing = await this.prisma.tipos_jaba.findFirst({
+        where: { id_tipo_jaba: BigInt(id), id_empresa: BigInt(empresaId) },
+      });
+      if (!existing) throw new NotFoundException(`Tipo de jaba con ID ${id} no encontrado`);
+    }
     return this.update(id, { estado });
   }
 }

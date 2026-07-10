@@ -4,6 +4,13 @@ import { CreateEntregaDto } from './dto/create-entregas.dto';
 import { UpdateEntregaDto } from './dto/update-entregas.dto';
 import { QueryEntregasDto } from './dto/query-entregas.dto';
 
+interface EntregaCreateDto extends CreateEntregaDto {
+  requiere_retorno_jabas?: boolean;
+  cantidad_jabas?: number;
+  id_cliente_emisor?: number;
+  id_tipo_jaba?: number;
+}
+
 @Injectable()
 export class EntregasService {
   constructor(private prisma: PrismaService) { }
@@ -21,44 +28,140 @@ export class EntregasService {
     return isNaN(date.getTime()) ? null : date;
   }
 
+  private async registrarLog(
+    client: any,
+    accion: string,
+    tabla_afectada: string,
+    id_registro: number | bigint | null,
+    datos_anteriores: any,
+    datos_nuevos: any,
+    empresaId?: number,
+    usuarioId?: number,
+  ) {
+    await client.logs_actividad.create({
+      data: {
+        id_empresa: empresaId ?? null,
+        id_usuario: usuarioId ?? null,
+        accion,
+        tabla_afectada,
+        id_registro,
+        datos_anteriores,
+        datos_nuevos,
+      },
+    });
+  }
+
   // ==================== CRUD ====================
-  async create(createDto: CreateEntregaDto) {
+  async create(createDto: EntregaCreateDto, empresaId: number = 1, usuarioId?: number) {
     await this.validateRelations(createDto);
     const horaDate = this.parseHora(createDto.hora_entrega);
 
-    // 1. Crear la entrega
-    const entrega = await this.prisma.entregas.create({
-      data: {
-        id_empresa: 1,
-        id_guia: createDto.id_guia,
-        id_item_reparto: createDto.id_item_reparto,
-        id_entregador: createDto.id_entregador,
-        fecha_entrega: new Date(createDto.fecha_entrega),
-        hora_entrega: horaDate,
-        cantidad_entregada: createDto.cantidad_entregada,
-        cantidad_rechazada: createDto.cantidad_rechazada ?? 0,
-        estado_entrega: createDto.estado_entrega,
-        firma_recibido: createDto.firma_recibido ?? false,
-        nombre_recibe: createDto.nombre_recibe,
-        observaciones: createDto.observaciones,
-      },
-      include: {
-        guias_operativas: {
-          include: {
-            items_reparto: {
-              include: {
-                detalle_carga: {
-                  select: { id_operacion: true }
+    const entrega = await this.prisma.$transaction(async (tx) => {
+      const entregaCreada = await tx.entregas.create({
+        data: {
+          id_empresa: 1,
+          id_guia: createDto.id_guia,
+          id_item_reparto: createDto.id_item_reparto,
+          id_entregador: createDto.id_entregador,
+          fecha_entrega: new Date(createDto.fecha_entrega),
+          hora_entrega: horaDate,
+          cantidad_entregada: createDto.cantidad_entregada,
+          cantidad_rechazada: createDto.cantidad_rechazada ?? 0,
+          estado_entrega: createDto.estado_entrega,
+          firma_recibido: createDto.firma_recibido ?? false,
+          nombre_recibe: createDto.nombre_recibe,
+          observaciones: createDto.observaciones,
+        },
+        include: {
+          guias_operativas: {
+            include: {
+              items_reparto: {
+                include: {
+                  detalle_carga: {
+                    select: { id_operacion: true, id_cliente_emisor: true, id_tipo_jaba: true, cantidad_jabas: true, requiere_retorno_jabas: true }
+                  }
                 }
               }
             }
           }
         }
+      });
+
+      const detalle = entregaCreada.guias_operativas?.items_reparto?.detalle_carga;
+      const requiereRetorno = Boolean(createDto.requiere_retorno_jabas ?? detalle?.requiere_retorno_jabas);
+
+      if (requiereRetorno) {
+        const cantidadJabas = createDto.cantidad_jabas ?? detalle?.cantidad_jabas ?? 0;
+        const idClienteEmisor = createDto.id_cliente_emisor ?? detalle?.id_cliente_emisor;
+        const idTipoJaba = createDto.id_tipo_jaba ?? detalle?.id_tipo_jaba;
+
+        if (cantidadJabas > 0 && idClienteEmisor && idTipoJaba) {
+          const jabaPagar = await tx.jabas_por_pagar.create({
+            data: {
+              id_empresa: 1,
+              id_entrega: entregaCreada.id_entrega,
+              id_cliente_emisor: idClienteEmisor,
+              id_tipo_jaba: idTipoJaba,
+              fecha_origen: new Date(createDto.fecha_entrega),
+              cantidad_original: cantidadJabas,
+              cantidad_pagada: 0,
+              saldo_pendiente: cantidadJabas,
+              estado: 'pendiente',
+              observaciones: 'Generado automáticamente al crear la entrega',
+            },
+          });
+
+          const jabaCobrar = await tx.jabas_por_cobrar.create({
+            data: {
+              id_empresa: 1,
+              id_entrega: entregaCreada.id_entrega,
+              id_tipo_jaba: idTipoJaba,
+              fecha_origen: new Date(createDto.fecha_entrega),
+              cantidad_original: cantidadJabas,
+              cantidad_recuperada: 0,
+              saldo_pendiente: cantidadJabas,
+              estado: 'pendiente',
+              observaciones: 'Generado automáticamente al crear la entrega',
+            },
+          });
+
+          await this.registrarLog(
+            tx,
+            'entrega_con_retorno_creada',
+            'entregas',
+            entregaCreada.id_entrega,
+            null,
+            {
+              entrega: entregaCreada.id_entrega,
+              jaba_por_pagar: jabaPagar.id_jaba_pagar,
+              jaba_por_cobrar: jabaCobrar.id_jaba_cobrar,
+              cantidad_original: cantidadJabas,
+            },
+            empresaId,
+            usuarioId,
+          );
+        }
       }
+
+      await this.registrarLog(
+        tx,
+        'entrega_creada',
+        'entregas',
+        entregaCreada.id_entrega,
+        null,
+        {
+          entrega: entregaCreada.id_entrega,
+          requiere_retorno_jabas: requiereRetorno,
+        },
+        empresaId,
+        usuarioId,
+      );
+
+      return entregaCreada;
     });
 
-    // 2. Obtener el id_operacion desde la guía
     const operacionId = entrega.guias_operativas?.items_reparto?.detalle_carga?.id_operacion;
+
     if (operacionId) {
       // Verificar si todas las guías de la operación están firmadas
       const guiasOperacion = await this.prisma.guias_operativas.findMany({

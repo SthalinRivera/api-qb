@@ -23,9 +23,11 @@ import { EntregasModule } from './modules/entregas/entregas.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { IncidenciasModule } from './modules/incidencias/incidencias.module';
 import { JabasModule } from './modules/jabas/jabas.module';
+import { EvidenciasModule } from './modules/evidencias/evidencias.module';
+import { LogsActividadModule } from './modules/logs-actividad/logs-actividad.module';
 
 @Module({
-  imports: [AuthModule, EmpresasModule, UsuariosModule, RolesUsuariosModule, ClientesModule, FrutasModule, VariedadesModule, CalidadesModule, TiposJabaModule, SedesModule, CamionesModule, LugaresOperativosModule, PuestosModule, OperacionesCargaModule, DetalleCargaModule, ItemsRepartoModule, GuiasOperativasModule, EntregasModule, DashboardModule, IncidenciasModule, JabasModule],
+  imports: [AuthModule, EmpresasModule, UsuariosModule, RolesUsuariosModule, ClientesModule, FrutasModule, VariedadesModule, CalidadesModule, TiposJabaModule, SedesModule, CamionesModule, LugaresOperativosModule, PuestosModule, OperacionesCargaModule, DetalleCargaModule, ItemsRepartoModule, GuiasOperativasModule, EntregasModule, DashboardModule, IncidenciasModule, JabasModule, EvidenciasModule, LogsActividadModule],
   controllers: [AppController],
   providers: [AppService],
 })

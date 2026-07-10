@@ -1,52 +1,74 @@
-import { Controller, Get, Post, Body, Patch, Param, Query, ParseIntPipe, Put } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Query, ParseIntPipe, Put, Req, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { PuestosService } from './puestos.service';
 import { CreatePuestoDto } from './dto/create-puesto.dto';
 import { UpdatePuestoDto } from './dto/update-puesto.dto';
 import { UpdateStateDto } from './dto/update-state.dto';
+import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
+import { AuthService } from '../auth/auth.service';
 
 @ApiTags('Puestos')
 @Controller('puestos')
+@UseGuards(SupabaseAuthGuard)
 export class PuestosController {
-  constructor(private readonly puestosService: PuestosService) { }
+  constructor(
+    private readonly puestosService: PuestosService,
+    private readonly authService: AuthService,
+  ) { }
+
+  private async getProfile(req: any) {
+    return this.authService.getProfile({ user: req.user });
+  }
 
   @Post()
   @ApiOperation({ summary: 'Crear un nuevo puesto' })
-  create(@Body() createPuestoDto: CreatePuestoDto) {
-    return this.puestosService.create(createPuestoDto);
+  async create(@Body() createPuestoDto: CreatePuestoDto, @Req() req: any) {
+    const profile = await this.getProfile(req);
+    return this.puestosService.create({
+      ...createPuestoDto,
+      id_empresa: profile.id_empresa,
+    });
   }
 
   @Get()
-  @ApiOperation({ summary: 'Listar puestos (opcionalmente filtrar por estado)' })
-  findAll(@Query('estado') estado?: string) {
+  @ApiOperation({ summary: 'Listar puestos de la empresa' })
+  async findAll(@Query('estado') estado?: string, @Req() req?: any) {
+    const profile = await this.getProfile(req);
     const estadoBool = estado === 'true' ? true : estado === 'false' ? false : undefined;
-    return this.puestosService.findAll(estadoBool);
+    return this.puestosService.findAll(profile.id_empresa, estadoBool);
+  }
+
+  @Get('mercado/:idMercado')
+  @ApiOperation({ summary: 'Puestos de un mercado específico' })
+  async findByMercado(
+    @Param('idMercado', ParseIntPipe) idMercado: number,
+    @Query('estado') estado?: string,
+  ) {
+    const estadoBool = estado === 'true' ? true : estado === 'false' ? false : undefined;
+    return this.puestosService.findByMercado(idMercado, estadoBool);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Obtener un puesto por ID' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.puestosService.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    const profile = await this.getProfile(req);
+    return this.puestosService.findOne(id, profile.id_empresa);
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Actualizar un puesto' })
-  update(@Param('id', ParseIntPipe) id: number, @Body() updatePuestoDto: UpdatePuestoDto) {
-    return this.puestosService.update(id, updatePuestoDto);
+  async update(@Param('id', ParseIntPipe) id: number, @Body() updatePuestoDto: UpdatePuestoDto, @Req() req: any) {
+    const profile = await this.getProfile(req);
+    return this.puestosService.update(id, {
+      ...updatePuestoDto,
+      id_empresa: profile.id_empresa,
+    });
   }
 
   @Patch(':id/estado')
   @ApiOperation({ summary: 'Activar o desactivar un puesto (soft delete)' })
-  changeState(@Param('id', ParseIntPipe) id: number, @Body() updateStateDto: UpdateStateDto) {
-    return this.puestosService.changeState(id, updateStateDto.estado);
-  }
-
-  @Get('mercado/:idMercado')
-  async findByMercado(
-    @Param('idMercado') idMercado: string,
-    @Query('estado') estado?: string,
-  ) {
-    const estadoBool = estado === 'true' ? true : estado === 'false' ? false : undefined;
-    return this.puestosService.findByMercado(+idMercado, estadoBool);
+  async changeState(@Param('id', ParseIntPipe) id: number, @Body() updateStateDto: UpdateStateDto, @Req() req: any) {
+    const profile = await this.getProfile(req);
+    return this.puestosService.changeState(id, updateStateDto.estado, profile.id_empresa);
   }
 }

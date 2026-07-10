@@ -6,6 +6,7 @@ import { CreateIncidenciaDto } from './dto/create-incidencia.dto';
 import { UpdateIncidenciaDto } from './dto/update-incidencia.dto';
 import { evidencias } from '@prisma/client';
 
+
 type Evidencia = evidencias;
 
 @Injectable()
@@ -13,7 +14,8 @@ export class IncidenciasService {
   constructor(
     private prisma: PrismaService,
     private r2Service: R2Service,
-  ) {}
+
+  ) { }
 
   // ============================================================
   // CREAR incidencia CON EVIDENCIAS (archivos subidos a R2)
@@ -26,7 +28,9 @@ export class IncidenciasService {
     console.log('🚀 Iniciando creación de incidencia con evidencias...');
     console.log('📥 DTO recibido:', JSON.stringify(createIncidenciaDto, null, 2));
     console.log('📎 Archivos recibidos:', files?.length || 0);
-
+    if (!idUsuario) {
+      throw new BadRequestException('idUsuario es  requerido');
+    }
     // 1. Obtener usuario
     const usuario = await this.prisma.usuarios.findUnique({
       where: { id_usuario: BigInt(idUsuario) },
@@ -38,6 +42,9 @@ export class IncidenciasService {
     }
     console.log(`👤 Usuario encontrado: id=${idUsuario}, id_empresa=${usuario.id_empresa}`);
 
+    if (!usuario.id_empresa) {
+      throw new BadRequestException('El usuario no tiene empresa asignada');
+    }
     // 2. Extraer id_empresa y otros campos
     const { id_empresa, ...restDto } = createIncidenciaDto;
 

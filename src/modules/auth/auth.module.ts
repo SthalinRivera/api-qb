@@ -8,6 +8,6 @@ import { PrismaModule } from '../../config/prisma/prisma.module';
     imports: [PrismaModule],
     controllers: [AuthController],
     providers: [AuthService, SupabaseAuthGuard],
-    exports: [SupabaseAuthGuard],
+    exports: [SupabaseAuthGuard, AuthService],
 })
 export class AuthModule { }

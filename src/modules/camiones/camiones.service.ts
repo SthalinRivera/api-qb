@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../config/prisma/prisma.service';
 import { CreateCamionDto } from './dto/create-camione.dto';
 import { UpdateCamionDto } from './dto/update-camione.dto';
@@ -25,8 +25,8 @@ export class CamionesService {
     });
   }
 
-  async findAll(estado?: boolean) {
-    const where: any = {};
+  async findAll(empresaId: number, estado?: boolean) {
+    const where: any = { id_empresa: BigInt(empresaId) };
     if (estado !== undefined) where.estado = estado;
     return this.prisma.camiones.findMany({
       where,
@@ -35,9 +35,12 @@ export class CamionesService {
     });
   }
 
-  async findOne(id: number) {
-    const camion = await this.prisma.camiones.findUnique({
-      where: { id_camion: BigInt(id) },
+  async findOne(id: number, empresaId?: number) {
+    const where: any = { id_camion: BigInt(id) };
+    if (empresaId) where.id_empresa = BigInt(empresaId);
+
+    const camion = await this.prisma.camiones.findFirst({
+      where,
       include: { empresas: true },
     });
     if (!camion) throw new NotFoundException(`Camión con ID ${id} no encontrado`);
@@ -45,11 +48,19 @@ export class CamionesService {
   }
 
   async update(id: number, updateCamionDto: UpdateCamionDto) {
+    const existing = await this.prisma.camiones.findUnique({
+      where: { id_camion: BigInt(id) },
+    });
+    if (!existing) throw new NotFoundException(`Camión con ID ${id} no encontrado`);
+
+    if (updateCamionDto.id_empresa && existing.id_empresa !== BigInt(updateCamionDto.id_empresa)) {
+      throw new ForbiddenException('No tiene permiso para modificar este registro');
+    }
+
     try {
       const updated = await this.prisma.camiones.update({
         where: { id_camion: BigInt(id) },
         data: {
-          id_empresa: updateCamionDto.id_empresa ? BigInt(updateCamionDto.id_empresa) : undefined,
           placa: updateCamionDto.placa,
           observaciones: updateCamionDto.observaciones,
           descripcion: updateCamionDto.descripcion,
@@ -64,7 +75,13 @@ export class CamionesService {
     }
   }
 
-  async changeState(id: number, estado: boolean) {
+  async changeState(id: number, estado: boolean, empresaId?: number) {
+    if (empresaId) {
+      const existing = await this.prisma.camiones.findFirst({
+        where: { id_camion: BigInt(id), id_empresa: BigInt(empresaId) },
+      });
+      if (!existing) throw new NotFoundException(`Camión con ID ${id} no encontrado`);
+    }
     return this.update(id, { estado });
   }
 }

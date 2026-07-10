@@ -18,6 +18,9 @@ export class DetalleCargaService {
       where: { id_operacion: operacionId },
     });
     if (!operacion) throw new NotFoundException(`Operación con ID ${operacionId} no existe`);
+    if (operacion.estado === 'repartiendo' || operacion.estado === 'cancelada') {
+      throw new BadRequestException('No se puede agregar detalles a una operación en tránsito o cancelada');
+    }
 
     await this.validateRelations(dto);
 
@@ -40,31 +43,9 @@ export class DetalleCargaService {
       });
 
       let itemReparto: any = null;
-      let entrega: any = null;
-      // 2. Si requiere retorno -> jabas_por_pagar
-      if (detalle.requiere_retorno_jabas) {
-        await tx.jabas_por_pagar.create({
-          data: {
-            id_empresa: 1,
-            id_detalle_carga: detalle.id_detalle_carga,
-            id_cliente_emisor: detalle.id_cliente_emisor,
-            id_tipo_jaba: detalle.id_tipo_jaba,
-            fecha_origen: new Date(),
-            cantidad_debida: detalle.cantidad_jabas,
-            cantidad_pagada: 0,
-            saldo_pendiente: detalle.cantidad_jabas,
-            estado: 'pendiente',
-            observaciones: 'Generado automáticamente al crear el detalle',
-          },
-        });
-      }
 
-      // 3. Si es entrega manual
-      if (dto.es_reparto === false) {
-        if (!dto.id_cliente_receptor || !dto.id_puesto) {
-          throw new BadRequestException('Para entrega manual debe especificar cliente receptor y puesto');
-        }
-
+      // 2. Crear item de reparto si se especificó cliente receptor y puesto
+      if (dto.id_cliente_receptor && dto.id_puesto) {
         const relacion = await tx.clientes_puestos.findFirst({
           where: {
             id_cliente: dto.id_cliente_receptor,
@@ -80,7 +61,6 @@ export class DetalleCargaService {
 
         const seccionFinal = dto.id_seccion ?? relacion.seccion;
 
-        // Crear item de reparto
         itemReparto = await tx.items_reparto.create({
           data: {
             id_empresa: 1,
@@ -94,59 +74,25 @@ export class DetalleCargaService {
           },
           include: { clientes: true, puestos: true },
         });
+      }
 
-        // Crear guía operativa
-        const guia = await tx.guias_operativas.create({
+      // 3. Si requiere retorno de jabas, crear jabas_por_pagar (sin entrega aún)
+      //    jabas_por_cobrar se creará cuando se registre la entrega real.
+      if (detalle.requiere_retorno_jabas) {
+        await tx.jabas_por_pagar.create({
           data: {
             id_empresa: 1,
-            numero_guia: `G-${Date.now()}-${itemReparto.id_item_reparto}`,
-            fecha_emision: new Date(),
-            id_repartidor: null,
-            estado: 'emitida',
-            observaciones: 'Guía generada automáticamente para entrega manual',
-            id_item_reparto: itemReparto.id_item_reparto,
-            id_puesto: dto.id_puesto,
+            id_entrega: null,
+            id_cliente_emisor: detalle.id_cliente_emisor,
+            id_tipo_jaba: detalle.id_tipo_jaba,
+            fecha_origen: new Date(),
+            cantidad_original: detalle.cantidad_jabas,
+            cantidad_pagada: 0,
+            saldo_pendiente: detalle.cantidad_jabas,
+            estado: 'pendiente',
+            observaciones: 'Generado automáticamente al crear detalle de carga (sin entrega aún)',
           },
         });
-
-        // Crear entrega
-        entrega = await tx.entregas.create({
-          data: {
-            id_empresa: 1,
-            id_guia: guia.id_guia,
-            id_item_reparto: itemReparto.id_item_reparto,
-            id_entregador: null,
-            fecha_entrega: new Date(),
-            hora_entrega: null,
-            cantidad_entregada: 0,
-            cantidad_rechazada: 0,
-            estado_entrega: 'pendiente',
-            firma_recibido: false,
-            nombre_recibe: null,
-            observaciones: 'Entrega pendiente generada automáticamente',
-          },
-        });
-
-        // Si requiere retorno -> jabas_por_cobrar
-        if (detalle.requiere_retorno_jabas) {
-          await tx.jabas_por_cobrar.create({
-            data: {
-              id_empresa: 1,
-              id_entrega: entrega.id_entrega,
-              id_item_reparto: itemReparto.id_item_reparto,
-              id_cliente_receptor: dto.id_cliente_receptor,
-              id_puesto: dto.id_puesto,
-              id_tipo_jaba: detalle.id_tipo_jaba,
-              fecha_origen: new Date(),
-              cantidad_debida: itemReparto.cantidad_asignada,
-              cantidad_recuperada: 0,
-              saldo_pendiente: itemReparto.cantidad_asignada,
-              estado: 'pendiente',
-              seccion: seccionFinal,
-              observaciones: 'Generado automáticamente al crear entrega manual',
-            },
-          });
-        }
       }
 
       // Actualizar estado de operación
@@ -160,7 +106,6 @@ export class DetalleCargaService {
       return {
         ...detalle,
         item_reparto: itemReparto,
-        entrega: entrega,
       };
     });
   }
@@ -224,13 +169,21 @@ export class DetalleCargaService {
    * No se permite cambiar el item de reparto asociado (se gestiona aparte).
    */
   async update(id: number, dto: UpdateDetalleCargaDto) {
-    await this.findOne(id); // verificar existencia
+    const detalle = await this.findOne(id);
 
     if (Object.keys(dto).length === 0) {
       throw new BadRequestException('No se enviaron datos para actualizar');
     }
 
-    // Validar las nuevas relaciones si cambian
+    // Verificar que la operación no esté en curso
+    const operacion = await this.prisma.operaciones_carga.findUnique({
+      where: { id_operacion: detalle.id_operacion },
+      select: { estado: true },
+    });
+    if (operacion?.estado === 'repartiendo' || operacion?.estado === 'cancelada') {
+      throw new BadRequestException('No se puede modificar un detalle de una operación en tránsito o cancelada');
+    }
+
     await this.validateRelations(dto);
 
     return this.prisma.detalle_carga.update({
@@ -260,7 +213,17 @@ export class DetalleCargaService {
    * Las calidades asociadas se eliminan en cascada si la relación está configurada.
    */
   async remove(id: number) {
-    await this.findOne(id);
+    const detalle = await this.findOne(id);
+
+    // Verificar que la operación no esté en curso
+    const operacion = await this.prisma.operaciones_carga.findUnique({
+      where: { id_operacion: detalle.id_operacion },
+      select: { estado: true },
+    });
+    if (operacion?.estado === 'repartiendo' || operacion?.estado === 'cancelada') {
+      throw new BadRequestException('No se puede eliminar un detalle de una operación en tránsito o cancelada');
+    }
+
     return this.prisma.detalle_carga.delete({
       where: { id_detalle_carga: id },
     });
@@ -303,6 +266,15 @@ export class DetalleCargaService {
 
     // 1. Verificar que el detalle exista
     const detalle = await this.findOne(detalleId);
+
+    // Verificar que la operación no esté en curso
+    const operacion = await this.prisma.operaciones_carga.findUnique({
+      where: { id_operacion: detalle.id_operacion },
+      select: { estado: true },
+    });
+    if (operacion?.estado === 'repartiendo' || operacion?.estado === 'cancelada') {
+      throw new BadRequestException('No se pueden modificar calidades de una operación en tránsito o cancelada');
+    }
 
     // 2. Verificar que la calidad exista
     const calidad = await this.prisma.calidades.findUnique({
@@ -367,6 +339,21 @@ export class DetalleCargaService {
       throw new NotFoundException(`Relación calidad con ID ${calidadId} no encontrada`);
     }
 
+    // Verificar que la operación no esté en curso
+    const detalleInfo = await this.prisma.detalle_carga.findUnique({
+      where: { id_detalle_carga: calidadRel.id_detalle_carga },
+      select: { id_operacion: true, es_reparto: true },
+    });
+    if (detalleInfo?.id_operacion) {
+      const operacion = await this.prisma.operaciones_carga.findUnique({
+        where: { id_operacion: detalleInfo.id_operacion },
+        select: { estado: true },
+      });
+      if (operacion?.estado === 'repartiendo' || operacion?.estado === 'cancelada') {
+        throw new BadRequestException('No se pueden modificar calidades de una operación en tránsito o cancelada');
+      }
+    }
+
     // Actualizar la calidad
     const updated = await this.prisma.detalle_carga_calidades.update({
       where: { id_detalle_carga_calidad: calidadId },
@@ -378,11 +365,7 @@ export class DetalleCargaService {
     });
 
     // Si el detalle es de reparto, actualizar también el items_reparto_detalle relacionado
-    const detalle = await this.prisma.detalle_carga.findUnique({
-      where: { id_detalle_carga: calidadRel.id_detalle_carga },
-      select: { es_reparto: true },
-    });
-    if (detalle?.es_reparto) {
+    if (detalleInfo?.es_reparto) {
       const itemReparto = await this.prisma.items_reparto.findFirst({
         where: { id_detalle_carga: calidadRel.id_detalle_carga },
       });
@@ -414,11 +397,20 @@ export class DetalleCargaService {
       throw new NotFoundException(`Relación calidad con ID ${calidadId} no encontrada`);
     }
 
-    // Si el detalle es de reparto, eliminar el items_reparto_detalle asociado
+    // Verificar que la operación no esté en curso
     const detalle = await this.prisma.detalle_carga.findUnique({
       where: { id_detalle_carga: calidadRel.id_detalle_carga },
-      select: { es_reparto: true },
+      select: { es_reparto: true, id_operacion: true },
     });
+    if (detalle?.id_operacion) {
+      const operacion = await this.prisma.operaciones_carga.findUnique({
+        where: { id_operacion: detalle.id_operacion },
+        select: { estado: true },
+      });
+      if (operacion?.estado === 'repartiendo' || operacion?.estado === 'cancelada') {
+        throw new BadRequestException('No se pueden eliminar calidades de una operación en tránsito o cancelada');
+      }
+    }
     if (detalle?.es_reparto) {
       const itemReparto = await this.prisma.items_reparto.findFirst({
         where: { id_detalle_carga: calidadRel.id_detalle_carga },

@@ -133,7 +133,6 @@ export class ItemsRepartoService {
     });
   }
 
-  // items-reparto.service.ts
   async findAll(query: QueryItemsRepartoDto) {
     const where: any = {};
     if (query.id_detalle_carga) where.id_detalle_carga = BigInt(query.id_detalle_carga);
@@ -141,7 +140,6 @@ export class ItemsRepartoService {
     if (query.id_puesto) where.id_puesto = BigInt(query.id_puesto);
     if (query.seccion) where.seccion = query.seccion;
 
-    // 1. Obtener los items con sus relaciones (sin guias_operativas directas)
     const items = await this.prisma.items_reparto.findMany({
       where,
       include: {
@@ -157,10 +155,9 @@ export class ItemsRepartoService {
         },
         clientes: true,
         puestos: {
-          include: { lugares_operativos: true }, // 👈 Asegurar que incluye lugares_operativos
+          include: { lugares_operativos: true },
         },
         entregas: true,
-        // ❌ Elimina 'guias_operativas: true' de aquí
         items_reparto_detalle: {
           include: {
             detalle_carga_calidades: {
@@ -172,87 +169,37 @@ export class ItemsRepartoService {
       orderBy: { orden_entrega: 'asc' },
     });
 
-    // 2. Si no hay items, retornar vacío (evita consultas innecesarias)
     if (items.length === 0) return items;
 
-    // 3. Obtener las operaciones involucradas en los items (para filtrar guías)
-    const operacionIds = [...new Set(
-      items
-        .map(item => item.detalle_carga?.id_operacion)
-        .filter(Boolean)
-        .map(Number)
-    )];
+    // Obtener las guías vinculadas directamente a los items obtenidos
+    // Usamos la relación explícita id_item_reparto para evitar cualquier
+    // coincidencia por puesto, operación u otro contexto.
+    const itemIds = items.map(item => item.id_item_reparto);
 
-    // 4. Obtener todas las guías que pertenecen a esas operaciones y que tienen id_puesto
     const guias = await this.prisma.guias_operativas.findMany({
       where: {
+        id_item_reparto: { in: itemIds },
         id_puesto: { not: null },
-        items_reparto: {
-          detalle_carga: {
-            id_operacion: { in: operacionIds.map(BigInt) },
-          },
-        },
-      },
-      include: {
-        // Opcional: incluir el item relacionado para obtener la operación (ya lo tenemos)
-        // Pero necesitamos la operación para mapear. Podemos filtrar directamente con el where de arriba.
-      },
-    });
-
-    // 5. Construir un mapa: clave = "puestoId|operacionId" -> guia
-    const guiaPorPuestoYOperacion = new Map<string, any>();
-    // Para cada guía, necesitamos saber su operación. Podemos obtenerla del item relacionado (el primero).
-    // Pero como la guía solo tiene un id_item_reparto, usamos ese para obtener la operación.
-    // Podemos hacer un include en la consulta de guías para obtener detalle_carga.
-    // Para simplificar, mejor hacemos una segunda consulta en el bucle? No, hagamos un include en la consulta de guías.
-
-    // Re-hagamos la consulta de guías incluyendo la operación:
-    const guiasConOperacion = await this.prisma.guias_operativas.findMany({
-      where: {
-        id_puesto: { not: null },
-        items_reparto: {
-          detalle_carga: {
-            id_operacion: { in: operacionIds.map(BigInt) },
-          },
-        },
       },
       include: {
         items_reparto: {
-          include: {
-            detalle_carga: {
-              select: { id_operacion: true },
-            },
-          },
+          select: { id_item_reparto: true },
         },
       },
     });
 
-    // Construir el mapa
-    guiasConOperacion.forEach(guia => {
-      const puestoId = guia.id_puesto;
-      const operacionId = guia.items_reparto?.detalle_carga?.id_operacion;
-      if (puestoId && operacionId) {
-        const key = `${puestoId}|${operacionId}`;
-        // Si hubiera múltiples guías para el mismo puesto+operación (no debería), podrías tomar la primera
-        if (!guiaPorPuestoYOperacion.has(key)) {
-          guiaPorPuestoYOperacion.set(key, guia);
-        }
+    const guiaPorItem = new Map<string, any>();
+    for (const guia of guias) {
+      const key = String(guia.id_item_reparto);
+      if (!guiaPorItem.has(key)) {
+        guiaPorItem.set(key, guia);
       }
-    });
+    }
 
-    // 6. Enriquecer cada item con la guía correspondiente
-    const itemsConGuia = items.map(item => {
-      const operacionId = item.detalle_carga?.id_operacion;
-      const puestoId = item.id_puesto;
-      const key = `${puestoId}|${operacionId}`;
-      const guia = guiaPorPuestoYOperacion.get(key) || null;
-      return {
-        ...item,
-        guia_asociada: guia, // Campo virtual
-      };
-    });
-
-    return itemsConGuia;
+    return items.map(item => ({
+      ...item,
+      guia_asociada: guiaPorItem.get(String(item.id_item_reparto)) || null,
+    }));
   }
   async findOne(id: number) {
     const item = await this.prisma.items_reparto.findUnique({

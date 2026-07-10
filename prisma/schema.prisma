@@ -72,7 +72,6 @@ model clientes {
   clientes_puestos clientes_puestos[]
   detalle_carga    detalle_carga[]
   items_reparto    items_reparto[]
-  jabas_por_cobrar jabas_por_cobrar[]
   jabas_por_pagar  jabas_por_pagar[]
 
   @@unique([id_empresa, nombres], map: "uq_cliente_empresa_nombre")
@@ -125,7 +124,6 @@ model detalle_carga {
   variedades              variedades?               @relation(fields: [id_variedad], references: [id_variedad], onDelete: NoAction, onUpdate: NoAction)
   detalle_carga_calidades detalle_carga_calidades[]
   items_reparto           items_reparto[]
-  jabas_por_pagar         jabas_por_pagar[]
 
   @@index([id_operacion], map: "idx_detalle_carga_operacion")
 }
@@ -152,23 +150,26 @@ model detalle_carga_calidades {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model devoluciones_jabas_emisor {
-  id_devolucion          BigInt          @id @default(autoincrement())
+  id_devolucion          BigInt                @id @default(autoincrement())
   id_empresa             BigInt
   id_jaba_pagar          BigInt
-  fecha_devolucion       DateTime        @db.Date
+  fecha_devolucion       DateTime              @db.Date
   tipo_devolucion        String
   cantidad               Int
   id_usuario_responsable BigInt?
   observaciones          String?
-  created_at             DateTime?       @default(now()) @db.Timestamptz(6)
-  saldo_resultante       Int?            @default(0)
-  empresas               empresas        @relation(fields: [id_empresa], references: [id_empresa], onDelete: NoAction, onUpdate: NoAction)
-  jabas_por_pagar        jabas_por_pagar @relation(fields: [id_jaba_pagar], references: [id_jaba_pagar], onDelete: NoAction, onUpdate: NoAction)
-  usuarios               usuarios?       @relation(fields: [id_usuario_responsable], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+  created_at             DateTime?             @default(now()) @db.Timestamptz(6)
+  id_recuperacion        BigInt?
+  recuperaciones_jabas   recuperaciones_jabas? @relation(fields: [id_recuperacion], references: [id_recuperacion], onDelete: NoAction, onUpdate: NoAction, map: "devolucion_recuperacion_fkey")
+  empresas               empresas              @relation(fields: [id_empresa], references: [id_empresa], onDelete: NoAction, onUpdate: NoAction)
+  jabas_por_pagar        jabas_por_pagar       @relation(fields: [id_jaba_pagar], references: [id_jaba_pagar], onDelete: NoAction, onUpdate: NoAction)
+  usuarios               usuarios?             @relation(fields: [id_usuario_responsable], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([id_empresa, fecha_devolucion(sort: Desc)], map: "idx_devoluciones_jabas_fecha")
   @@index([id_jaba_pagar], map: "idx_devoluciones_jabas_pagar")
   @@index([id_empresa, tipo_devolucion], map: "idx_devoluciones_jabas_tipo")
+  @@index([id_jaba_pagar], map: "idx_devolucion_jaba")
+  @@index([id_recuperacion], map: "idx_devolucion_recuperacion")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -232,6 +233,7 @@ model entregas {
   items_reparto      items_reparto      @relation(fields: [id_item_reparto], references: [id_item_reparto], onDelete: NoAction, onUpdate: NoAction)
   incidencias        incidencias[]
   jabas_por_cobrar   jabas_por_cobrar[]
+  jabas_por_pagar    jabas_por_pagar[]
 
   @@index([id_empresa, fecha_entrega], map: "idx_entregas_empresa_fecha")
 }
@@ -339,7 +341,6 @@ model items_reparto {
   empresas              empresas                @relation(fields: [id_empresa], references: [id_empresa], onDelete: Cascade, onUpdate: NoAction)
   puestos               puestos                 @relation(fields: [id_puesto], references: [id_puesto], onDelete: NoAction, onUpdate: NoAction)
   items_reparto_detalle items_reparto_detalle[]
-  jabas_por_cobrar      jabas_por_cobrar[]
 
   @@index([id_detalle_carga], map: "idx_items_reparto_detalle")
 }
@@ -350,32 +351,25 @@ model jabas_por_cobrar {
   id_jaba_cobrar       BigInt                 @id @default(autoincrement())
   id_empresa           BigInt
   id_entrega           BigInt
-  id_item_reparto      BigInt?
-  id_cliente_receptor  BigInt
-  id_puesto            BigInt?
   id_tipo_jaba         BigInt
   fecha_origen         DateTime               @db.Date
-  cantidad_debida      Int
+  cantidad_original    Int
   cantidad_recuperada  Int                    @default(0)
   saldo_pendiente      Int
   estado               String                 @default("pendiente")
   observaciones        String?
   created_at           DateTime?              @default(now()) @db.Timestamptz(6)
   seccion              String?
-  clientes             clientes               @relation(fields: [id_cliente_receptor], references: [id_cliente], onDelete: NoAction, onUpdate: NoAction)
+  entregas             entregas               @relation(fields: [id_entrega], references: [id_entrega], onDelete: NoAction, onUpdate: NoAction, map: "fk_jpc_entrega")
   empresas             empresas               @relation(fields: [id_empresa], references: [id_empresa], onDelete: NoAction, onUpdate: NoAction)
-  entregas             entregas               @relation(fields: [id_entrega], references: [id_entrega], onDelete: NoAction, onUpdate: NoAction)
-  items_reparto        items_reparto?         @relation(fields: [id_item_reparto], references: [id_item_reparto], onDelete: NoAction, onUpdate: NoAction)
-  puestos              puestos?               @relation(fields: [id_puesto], references: [id_puesto], onDelete: NoAction, onUpdate: NoAction)
   tipos_jaba           tipos_jaba             @relation(fields: [id_tipo_jaba], references: [id_tipo_jaba], onDelete: NoAction, onUpdate: NoAction)
   recuperaciones_jabas recuperaciones_jabas[]
 
-  @@index([id_empresa, id_cliente_receptor], map: "idx_jabas_por_cobrar_empresa_cliente")
   @@index([id_entrega], map: "idx_jabas_por_cobrar_entrega")
   @@index([id_empresa, estado], map: "idx_jabas_por_cobrar_estado")
   @@index([id_empresa, fecha_origen(sort: Desc)], map: "idx_jabas_por_cobrar_fecha")
-  @@index([id_empresa, id_puesto], map: "idx_jabas_por_cobrar_puesto")
   @@index([id_empresa, id_tipo_jaba], map: "idx_jabas_por_cobrar_tipo_jaba")
+  @@index([id_entrega], map: "idx_jpc_entrega")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -383,27 +377,27 @@ model jabas_por_cobrar {
 model jabas_por_pagar {
   id_jaba_pagar             BigInt                      @id @default(autoincrement())
   id_empresa                BigInt
-  id_detalle_carga          BigInt
   id_cliente_emisor         BigInt
   id_tipo_jaba              BigInt
   fecha_origen              DateTime                    @db.Date
-  cantidad_debida           Int
+  cantidad_original         Int
   cantidad_pagada           Int                         @default(0)
   saldo_pendiente           Int
   estado                    String                      @default("pendiente")
   observaciones             String?
   created_at                DateTime?                   @default(now()) @db.Timestamptz(6)
+  id_entrega                BigInt?
   devoluciones_jabas_emisor devoluciones_jabas_emisor[]
+  entregas                  entregas?                   @relation(fields: [id_entrega], references: [id_entrega], onDelete: NoAction, onUpdate: NoAction, map: "fk_jpp_entrega")
   clientes                  clientes                    @relation(fields: [id_cliente_emisor], references: [id_cliente], onDelete: NoAction, onUpdate: NoAction)
-  detalle_carga             detalle_carga               @relation(fields: [id_detalle_carga], references: [id_detalle_carga], onDelete: NoAction, onUpdate: NoAction)
   empresas                  empresas                    @relation(fields: [id_empresa], references: [id_empresa], onDelete: NoAction, onUpdate: NoAction)
   tipos_jaba                tipos_jaba                  @relation(fields: [id_tipo_jaba], references: [id_tipo_jaba], onDelete: NoAction, onUpdate: NoAction)
 
-  @@index([id_detalle_carga], map: "idx_jabas_por_pagar_detalle_carga")
   @@index([id_empresa, id_cliente_emisor], map: "idx_jabas_por_pagar_empresa_cliente")
   @@index([id_empresa, estado], map: "idx_jabas_por_pagar_estado")
   @@index([id_empresa, fecha_origen(sort: Desc)], map: "idx_jabas_por_pagar_fecha")
   @@index([id_empresa, id_tipo_jaba], map: "idx_jabas_por_pagar_tipo_jaba")
+  @@index([id_entrega], map: "idx_jpp_entrega")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -481,7 +475,6 @@ model puestos {
   clientes_puestos   clientes_puestos[]
   guias_operativas   guias_operativas[]
   items_reparto      items_reparto[]
-  jabas_por_cobrar   jabas_por_cobrar[]
   empresas           empresas           @relation(fields: [id_empresa], references: [id_empresa], onDelete: Cascade, onUpdate: NoAction)
   lugares_operativos lugares_operativos @relation(fields: [id_lugar], references: [id_lugar], onDelete: NoAction, onUpdate: NoAction)
 
@@ -492,23 +485,24 @@ model puestos {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model recuperaciones_jabas {
-  id_recuperacion        BigInt           @id @default(autoincrement())
-  id_empresa             BigInt
-  id_jaba_cobrar         BigInt
-  fecha_recuperacion     DateTime         @db.Date
-  tipo_recuperacion      String
-  cantidad               Int
-  id_usuario_responsable BigInt?
-  observaciones          String?
-  created_at             DateTime?        @default(now()) @db.Timestamptz(6)
-  saldo_resultante       Int?             @default(0)
-  empresas               empresas         @relation(fields: [id_empresa], references: [id_empresa], onDelete: NoAction, onUpdate: NoAction)
-  jabas_por_cobrar       jabas_por_cobrar @relation(fields: [id_jaba_cobrar], references: [id_jaba_cobrar], onDelete: NoAction, onUpdate: NoAction)
-  usuarios               usuarios?        @relation(fields: [id_usuario_responsable], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+  id_recuperacion           BigInt                      @id @default(autoincrement())
+  id_empresa                BigInt
+  id_jaba_cobrar            BigInt
+  fecha_recuperacion        DateTime                    @db.Date
+  tipo_recuperacion         String
+  cantidad                  Int
+  id_usuario_responsable    BigInt?
+  observaciones             String?
+  created_at                DateTime?                   @default(now()) @db.Timestamptz(6)
+  devoluciones_jabas_emisor devoluciones_jabas_emisor[]
+  empresas                  empresas                    @relation(fields: [id_empresa], references: [id_empresa], onDelete: NoAction, onUpdate: NoAction)
+  jabas_por_cobrar          jabas_por_cobrar            @relation(fields: [id_jaba_cobrar], references: [id_jaba_cobrar], onDelete: NoAction, onUpdate: NoAction)
+  usuarios                  usuarios?                   @relation(fields: [id_usuario_responsable], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([id_jaba_cobrar], map: "idx_recuperaciones_jabas_cobrar")
   @@index([id_empresa, fecha_recuperacion(sort: Desc)], map: "idx_recuperaciones_jabas_fecha")
   @@index([id_empresa, tipo_recuperacion], map: "idx_recuperaciones_jabas_tipo")
+  @@index([id_jaba_cobrar], map: "idx_recuperacion_jaba")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.

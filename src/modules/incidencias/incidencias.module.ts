@@ -3,10 +3,11 @@ import { IncidenciasService } from './incidencias.service';
 import { IncidenciasController } from './incidencias.controller';
 import { R2Service } from '../../common/shared/r2.service';
 import { ConfigModule } from '@nestjs/config';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
-    ConfigModule, // ← Agregar ConfigModule para que ConfigService esté disponible
+    ConfigModule, AuthModule 
   ],
   controllers: [IncidenciasController],
   providers: [IncidenciasService, R2Service],

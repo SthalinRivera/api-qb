@@ -98,13 +98,15 @@ export class OperacionesCargaService {
 
 
   async update(id: number, updateDto: UpdateOperacionCargaDto) {
-    await this.findOne(id); // Asegura que la operación existe
+    const operacion = await this.findOne(id);
+    if (operacion.estado === 'repartiendo' || operacion.estado === 'cancelada') {
+      throw new BadRequestException('No se puede modificar una operación en tránsito o cancelada');
+    }
 
     if (Object.keys(updateDto).length === 0) {
       throw new BadRequestException('No se enviaron datos para actualizar');
     }
 
-    // Validar que las nuevas relaciones existan (si se están cambiando)
     await this.validateRelations(updateDto, id);
 
     return this.prisma.operaciones_carga.update({
@@ -132,7 +134,10 @@ export class OperacionesCargaService {
 
 
   async remove(id: number) {
-    await this.findOne(id);
+    const operacion = await this.findOne(id);
+    if (operacion.estado === 'repartiendo') {
+      throw new BadRequestException('No se puede cancelar una operación en tránsito');
+    }
     return this.prisma.operaciones_carga.update({
       where: { id_operacion: id },
       data: { estado: 'cancelada' },
@@ -141,14 +146,46 @@ export class OperacionesCargaService {
 
 
   async changeState(id: number, newState: string) {
-    const allowedStates = ['pendiente', 'en_proceso', 'completada', 'cancelada'];
+    const allowedStates = ['pendiente', 'en_curso', 'repartiendo', 'cancelada'];
     if (!allowedStates.includes(newState)) {
       throw new BadRequestException(`Estado no válido: ${newState}`);
     }
-    await this.findOne(id);
+    const operacion = await this.findOne(id);
+    if (operacion.estado === 'repartiendo') {
+      throw new BadRequestException('No se puede cambiar el estado de una operación en tránsito');
+    }
     return this.prisma.operaciones_carga.update({
       where: { id_operacion: id },
       data: { estado: newState },
+    });
+  }
+
+  async finalizar(operacionId: number) {
+    const operacion = await this.prisma.operaciones_carga.findUnique({
+      where: { id_operacion: operacionId },
+      include: {
+        detalle_carga: true,
+      },
+    });
+    if (!operacion) {
+      throw new NotFoundException(`Operación con ID ${operacionId} no encontrada`);
+    }
+    if (operacion.estado === 'repartiendo') {
+      throw new BadRequestException('La operación ya está en reparto');
+    }
+    if (operacion.estado === 'cancelada') {
+      throw new BadRequestException('No se puede finalizar una operación cancelada');
+    }
+
+    // Solo validar que tenga al menos un detalle de carga
+    if (operacion.detalle_carga.length === 0) {
+      throw new BadRequestException('La operación debe tener al menos un detalle de carga');
+    }
+
+    // Marcar como repartiendo (carga completada, en tránsito)
+    return this.prisma.operaciones_carga.update({
+      where: { id_operacion: operacionId },
+      data: { estado: 'repartiendo' },
     });
   }
 

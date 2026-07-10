@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Body, Put, Param, Delete, Query, ParseIntPipe, Patch,
+  Controller, Get, Post, Body, Put, Param, Delete, Query, ParseIntPipe, Patch, Req,
 } from '@nestjs/common';
 import { EntregasService } from './entregas.service';
 import { CreateEntregaDto } from './dto/create-entregas.dto';
@@ -11,8 +11,8 @@ export class EntregasController {
   constructor(private readonly service: EntregasService) { }
 
   @Post()
-  create(@Body() dto: CreateEntregaDto) {
-    return this.service.create(dto);
+  create(@Body() dto: CreateEntregaDto, @Req() req: any) {
+    return this.service.create(dto, req.user?.id_empresa ?? 1, req.user?.id);
   }
 
   @Get()
