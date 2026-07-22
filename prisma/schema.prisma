@@ -25,15 +25,13 @@ model calidades {
 model camiones {
   id_camion         BigInt              @id @default(autoincrement())
   id_empresa        BigInt
-  placa             String
+  placa             String              @unique(map: "uq_camion_placa")
   observaciones     String?
   estado            Boolean?            @default(true)
   created_at        DateTime?           @default(now()) @db.Timestamptz(6)
   descripcion       String?
   empresas          empresas            @relation(fields: [id_empresa], references: [id_empresa], onDelete: Cascade, onUpdate: NoAction)
   operaciones_carga operaciones_carga[]
-
-  @@unique([id_empresa, placa], map: "uq_camion_empresa_placa")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -51,6 +49,7 @@ model cliente_sede {
   empresas        empresas  @relation(fields: [id_empresa], references: [id_empresa], onDelete: Cascade, onUpdate: NoAction)
   sedes           sedes     @relation(fields: [id_sede], references: [id_sede], onDelete: Cascade, onUpdate: NoAction)
 
+  @@unique([id_cliente, id_sede, tipo_relacion], map: "uq_cliente_sede")
   @@index([id_cliente], map: "idx_cliente_sede_cliente")
   @@index([id_sede], map: "idx_cliente_sede_sede")
   @@index([tipo_relacion], map: "idx_cliente_sede_tipo_relacion")
@@ -75,7 +74,6 @@ model clientes {
   jabas_por_pagar  jabas_por_pagar[]
 
   @@unique([id_empresa, nombres], map: "uq_cliente_empresa_nombre")
-  @@index([id_empresa, nombres], map: "idx_clientes_empresa_nombre")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -168,7 +166,6 @@ model devoluciones_jabas_emisor {
   @@index([id_empresa, fecha_devolucion(sort: Desc)], map: "idx_devoluciones_jabas_fecha")
   @@index([id_jaba_pagar], map: "idx_devoluciones_jabas_pagar")
   @@index([id_empresa, tipo_devolucion], map: "idx_devoluciones_jabas_tipo")
-  @@index([id_jaba_pagar], map: "idx_devolucion_jaba")
   @@index([id_recuperacion], map: "idx_devolucion_recuperacion")
 }
 
@@ -360,8 +357,8 @@ model jabas_por_cobrar {
   observaciones        String?
   created_at           DateTime?              @default(now()) @db.Timestamptz(6)
   seccion              String?
-  entregas             entregas               @relation(fields: [id_entrega], references: [id_entrega], onDelete: NoAction, onUpdate: NoAction, map: "fk_jpc_entrega")
   empresas             empresas               @relation(fields: [id_empresa], references: [id_empresa], onDelete: NoAction, onUpdate: NoAction)
+  entregas             entregas               @relation(fields: [id_entrega], references: [id_entrega], onDelete: NoAction, onUpdate: NoAction, map: "fk_jpc_entrega")
   tipos_jaba           tipos_jaba             @relation(fields: [id_tipo_jaba], references: [id_tipo_jaba], onDelete: NoAction, onUpdate: NoAction)
   recuperaciones_jabas recuperaciones_jabas[]
 
@@ -369,7 +366,6 @@ model jabas_por_cobrar {
   @@index([id_empresa, estado], map: "idx_jabas_por_cobrar_estado")
   @@index([id_empresa, fecha_origen(sort: Desc)], map: "idx_jabas_por_cobrar_fecha")
   @@index([id_empresa, id_tipo_jaba], map: "idx_jabas_por_cobrar_tipo_jaba")
-  @@index([id_entrega], map: "idx_jpc_entrega")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -388,10 +384,10 @@ model jabas_por_pagar {
   created_at                DateTime?                   @default(now()) @db.Timestamptz(6)
   id_entrega                BigInt?
   devoluciones_jabas_emisor devoluciones_jabas_emisor[]
-  entregas                  entregas?                   @relation(fields: [id_entrega], references: [id_entrega], onDelete: NoAction, onUpdate: NoAction, map: "fk_jpp_entrega")
   clientes                  clientes                    @relation(fields: [id_cliente_emisor], references: [id_cliente], onDelete: NoAction, onUpdate: NoAction)
   empresas                  empresas                    @relation(fields: [id_empresa], references: [id_empresa], onDelete: NoAction, onUpdate: NoAction)
   tipos_jaba                tipos_jaba                  @relation(fields: [id_tipo_jaba], references: [id_tipo_jaba], onDelete: NoAction, onUpdate: NoAction)
+  entregas                  entregas?                   @relation(fields: [id_entrega], references: [id_entrega], onDelete: NoAction, onUpdate: NoAction, map: "fk_jpp_entrega")
 
   @@index([id_empresa, id_cliente_emisor], map: "idx_jabas_por_pagar_empresa_cliente")
   @@index([id_empresa, estado], map: "idx_jabas_por_pagar_estado")
@@ -418,7 +414,7 @@ model logs_actividad {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model lugares_operativos {
-  id_lugar             BigInt    @id(map: "mercados_pkey") @default(autoincrement())
+  id_lugar             BigInt    @id @default(autoincrement())
   id_empresa           BigInt
   id_sede              BigInt
   nombre               String
@@ -431,8 +427,8 @@ model lugares_operativos {
   sedes                sedes     @relation(fields: [id_sede], references: [id_sede], onDelete: Cascade, onUpdate: NoAction)
   puestos              puestos[]
 
-  @@unique([id_sede, nombre], map: "uq_mercado_sede")
-  @@index([id_empresa, id_sede], map: "idx_mercados_empresa_sede")
+  @@unique([id_sede, nombre], map: "uq_lugar_operativo_sede")
+  @@index([id_empresa, id_sede], map: "idx_lugares_operativos_empresa_sede")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -478,8 +474,8 @@ model puestos {
   empresas           empresas           @relation(fields: [id_empresa], references: [id_empresa], onDelete: Cascade, onUpdate: NoAction)
   lugares_operativos lugares_operativos @relation(fields: [id_lugar], references: [id_lugar], onDelete: NoAction, onUpdate: NoAction)
 
-  @@unique([id_lugar, numero_puesto], map: "uq_puesto_mercado")
-  @@index([id_empresa, id_lugar], map: "idx_puestos_empresa_mercado")
+  @@unique([id_lugar, numero_puesto], map: "uq_puesto_lugar")
+  @@index([id_empresa, id_lugar], map: "idx_puestos_empresa_lugar")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -502,7 +498,6 @@ model recuperaciones_jabas {
   @@index([id_jaba_cobrar], map: "idx_recuperaciones_jabas_cobrar")
   @@index([id_empresa, fecha_recuperacion(sort: Desc)], map: "idx_recuperaciones_jabas_fecha")
   @@index([id_empresa, tipo_recuperacion], map: "idx_recuperaciones_jabas_tipo")
-  @@index([id_jaba_cobrar], map: "idx_recuperacion_jaba")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -512,6 +507,7 @@ model roles_usuarios {
   descripcion    String?
   estado         Boolean?         @default(true)
   created_at     DateTime?        @default(now()) @db.Timestamptz(6)
+  roles_modulos  roles_modulos[]
   usuarios_roles usuarios_roles[]
 }
 
@@ -579,12 +575,12 @@ model usuarios {
   operaciones_carga_operaciones_carga_id_encargado_cargaTousuarios     operaciones_carga[]         @relation("operaciones_carga_id_encargado_cargaTousuarios")
   operaciones_carga_operaciones_carga_id_repartidor_asignadoTousuarios operaciones_carga[]         @relation("operaciones_carga_id_repartidor_asignadoTousuarios")
   recuperaciones_jabas                                                 recuperaciones_jabas[]
+  roles_modulos                                                        roles_modulos[]
   empresas                                                             empresas                    @relation(fields: [id_empresa], references: [id_empresa], onDelete: Cascade, onUpdate: NoAction)
   sedes                                                                sedes                       @relation(fields: [id_sede], references: [id_sede], onDelete: SetNull, onUpdate: NoAction)
   usuarios_roles                                                       usuarios_roles[]
 
   @@unique([id_empresa, email], map: "uq_usuario_empresa_email")
-  @@index([id_empresa, email], map: "idx_usuarios_empresa_email")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -630,4 +626,53 @@ model items_reparto_detalle {
   detalle_carga_calidades  detalle_carga_calidades @relation(fields: [id_detalle_carga_calidad], references: [id_detalle_carga_calidad], onDelete: NoAction, onUpdate: NoAction)
   empresas                 empresas                @relation(fields: [id_empresa], references: [id_empresa], onDelete: NoAction, onUpdate: NoAction)
   items_reparto            items_reparto           @relation(fields: [id_item_reparto], references: [id_item_reparto], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model categorias {
+  id_categoria BigInt    @id @default(autoincrement())
+  nombre       String
+  descripcion  String?
+  icono_web    String?
+  icono_mobil  String?
+  orden        Int?      @default(0)
+  estado       Boolean?  @default(true)
+  created_at   DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime? @default(now()) @db.Timestamptz(6)
+  modulos      modulos[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model modulos {
+  id_modulo     BigInt          @id @default(autoincrement())
+  nombre        String
+  ruta          String
+  id_categoria  BigInt
+  orden         Int?            @default(0)
+  estado        Boolean?        @default(true)
+  created_at    DateTime?       @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime?       @default(now()) @db.Timestamptz(6)
+  categorias    categorias      @relation(fields: [id_categoria], references: [id_categoria], onUpdate: NoAction)
+  roles_modulos roles_modulos[]
+
+  @@index([id_categoria], map: "idx_modulos_categoria")
+  @@index([estado], map: "idx_modulos_estado")
+  @@index([orden], map: "idx_modulos_orden")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model roles_modulos {
+  id_rol_modulo    BigInt         @id @default(autoincrement())
+  rol_id           BigInt
+  modulo_id        BigInt
+  fecha_asignacion DateTime?      @default(now()) @db.Timestamptz(6)
+  usuario_asigno   BigInt?
+  modulos          modulos        @relation(fields: [modulo_id], references: [id_modulo], onDelete: Cascade, onUpdate: NoAction)
+  roles_usuarios   roles_usuarios @relation(fields: [rol_id], references: [id_rol_usuario], onDelete: Cascade, onUpdate: NoAction)
+  usuarios         usuarios?      @relation(fields: [usuario_asigno], references: [id_usuario], onUpdate: NoAction)
+
+  @@unique([rol_id, modulo_id], map: "roles_modulos_unique")
+  @@index([fecha_asignacion], map: "idx_roles_modulos_fecha")
+  @@index([modulo_id], map: "idx_roles_modulos_modulo")
+  @@index([rol_id], map: "idx_roles_modulos_rol")
 }

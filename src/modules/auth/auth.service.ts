@@ -4,21 +4,7 @@ import {
 } from '@nestjs/common';
 
 import { PrismaService } from '../../config/prisma/prisma.service';
-
 import { Prisma } from '@prisma/client';
-
-type UsuarioCompleto =
-    Prisma.usuariosGetPayload<{
-        include: {
-            empresas: true;
-            usuarios_roles: {
-                include: {
-                    roles_usuarios: true;
-                };
-            };
-            sedes: true;
-        };
-    }>;
 
 @Injectable()
 export class AuthService {
@@ -27,17 +13,6 @@ export class AuthService {
         private prisma: PrismaService,
     ) { }
 
-    /**
-     * Obtiene el perfil del usuario autenticado.
-     *
-     * Flujo:
-     * 1. Extrae información del usuario desde el token.
-     * 2. Busca el usuario en la base de datos (solo si estado = true).
-     * 3. Si no existe, rechaza el acceso.
-     *    TODO: eliminar el usuario Auth de Supabase si corresponde.
-     * 4. Si existe, actualiza sus datos desde Google.
-     * 5. Retorna el perfil completo del usuario.
-     */
     async getProfile(authPayload: any) {
         try {
             const { user } = authPayload;
@@ -56,10 +31,7 @@ export class AuthService {
 
             console.log('1️⃣ Usuario extraído desde token:', email);
 
-            // ------------------------------
-            // Buscar usuario en la base de datos
-            // ------------------------------
-            let userDb: UsuarioCompleto | null = await this.prisma.usuarios.findFirst({
+            let userDb: any = await this.prisma.usuarios.findFirst({
                 where: {
                     email,
                     estado: true,
@@ -75,26 +47,8 @@ export class AuthService {
                 },
             });
 
-            // ------------------------------
-            // Si no existe, rechazar acceso
-            // ------------------------------
             if (!userDb) {
                 console.warn('❌ Usuario no registrado en la base de datos:', email);
-
-                /**
-                 * TODO:
-                 * Aquí se podría eliminar el usuario de Supabase Auth.
-                 *
-                 * Para hacerlo necesitas usar el cliente admin de Supabase
-                 * con la SERVICE_ROLE_KEY, nunca con la anon key.
-                 *
-                 * Ejemplo conceptual:
-                 *
-                 * await supabaseAdmin.auth.admin.deleteUser(sub);
-                 *
-                 * De momento solo rechazamos el acceso.
-                 */
-
                 throw new UnauthorizedException(
                     'Usuario no registrado en el sistema. Contacta al administrador.'
                 );
@@ -102,9 +56,6 @@ export class AuthService {
 
             console.log('2️⃣ Usuario encontrado en BD:', userDb.id_usuario);
 
-            // ------------------------------
-            // Si existe, actualizar datos desde Google
-            // ------------------------------
             const updateData: any = {};
             let hasChanges = false;
 
@@ -159,20 +110,60 @@ export class AuthService {
                 console.log('✅ Usuario actualizado desde Google');
             }
 
-            // ------------------------------
-            // Verificar estado del usuario
-            // ------------------------------
             if (!userDb.estado) {
                 throw new UnauthorizedException(
                     'Usuario inactivo. Contacta al administrador.'
                 );
             }
 
-            const roles = userDb.usuarios_roles.map((ur) => ({
+            const roles = userDb.usuarios_roles.map((ur: any) => ({
                 id: Number(ur.roles_usuarios.id_rol_usuario),
                 nombre: ur.roles_usuarios.nombre,
                 descripcion: ur.roles_usuarios.descripcion,
             }));
+
+            // Obtener los IDs de los roles del usuario
+            const rolIds = userDb.usuarios_roles.map((ur: any) => ur.roles_usuarios.id_rol_usuario);
+
+            // Obtener módulos asignados a esos roles (query separado)
+            let modulos: any[] = [];
+            if (rolIds.length > 0) {
+                const rolIdsBigInt = rolIds.map((id: any) => BigInt(id));
+                const modulosAsignados = await this.prisma.$queryRaw(Prisma.sql`
+                    SELECT DISTINCT
+                        m.id_modulo,
+                        m.nombre,
+                        m.ruta,
+                        m.orden,
+                        m.estado,
+                        c.id_categoria,
+                        c.nombre as cat_nombre,
+                        c.icono_web,
+                        c.icono_mobil,
+                        c.orden as cat_orden
+                    FROM roles_modulos rm
+                    INNER JOIN modulos m ON m.id_modulo = rm.modulo_id
+                    INNER JOIN categorias c ON c.id_categoria = m.id_categoria
+                    WHERE rm.rol_id IN (${Prisma.join(rolIdsBigInt)})
+                    AND m.estado = true
+                    ORDER BY c.orden ASC, m.orden ASC
+                `);
+
+                modulos = (modulosAsignados as any[]).map((m: any) => ({
+                    id_modulo: Number(m.id_modulo),
+                    nombre: m.nombre,
+                    ruta: m.ruta.startsWith('/') ? `/dashboard${m.ruta}` : `/dashboard/${m.ruta}`,
+                    orden: Number(m.orden),
+                    estado: m.estado,
+                    categoria: {
+                        id_categoria: Number(m.id_categoria),
+                        nombre: m.cat_nombre,
+                        icono_web: m.icono_web,
+                        icono_mobil: m.icono_mobil,
+                        orden: Number(m.cat_orden),
+                    },
+                }));
+            }
 
             return {
                 id: Number(userDb.id_usuario),
@@ -195,6 +186,7 @@ export class AuthService {
                 created_at: userDb.created_at,
 
                 roles,
+                modulos,
 
                 sede: userDb.sedes ? {
                     id: Number(userDb.sedes.id_sede),

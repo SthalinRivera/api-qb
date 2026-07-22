@@ -25,9 +25,12 @@ import { IncidenciasModule } from './modules/incidencias/incidencias.module';
 import { JabasModule } from './modules/jabas/jabas.module';
 import { EvidenciasModule } from './modules/evidencias/evidencias.module';
 import { LogsActividadModule } from './modules/logs-actividad/logs-actividad.module';
+import { CategoriasModule } from './modules/categorias/categorias.module';
+import { ModulosModule } from './modules/modulos/modulos.module';
+import { RolesModulosModule } from './modules/roles-modulos/roles-modulos.module';
 
 @Module({
-  imports: [AuthModule, EmpresasModule, UsuariosModule, RolesUsuariosModule, ClientesModule, FrutasModule, VariedadesModule, CalidadesModule, TiposJabaModule, SedesModule, CamionesModule, LugaresOperativosModule, PuestosModule, OperacionesCargaModule, DetalleCargaModule, ItemsRepartoModule, GuiasOperativasModule, EntregasModule, DashboardModule, IncidenciasModule, JabasModule, EvidenciasModule, LogsActividadModule],
+  imports: [AuthModule, EmpresasModule, UsuariosModule, RolesUsuariosModule, ClientesModule, FrutasModule, VariedadesModule, CalidadesModule, TiposJabaModule, SedesModule, CamionesModule, LugaresOperativosModule, PuestosModule, OperacionesCargaModule, DetalleCargaModule, ItemsRepartoModule, GuiasOperativasModule, EntregasModule, DashboardModule, IncidenciasModule, JabasModule, EvidenciasModule, LogsActividadModule, CategoriasModule, ModulosModule, RolesModulosModule],
   controllers: [AppController],
   providers: [AppService],
 })
