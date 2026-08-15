@@ -28,9 +28,10 @@ import { LogsActividadModule } from './modules/logs-actividad/logs-actividad.mod
 import { CategoriasModule } from './modules/categorias/categorias.module';
 import { ModulosModule } from './modules/modulos/modulos.module';
 import { RolesModulosModule } from './modules/roles-modulos/roles-modulos.module';
+import { ReportesModule } from './modules/reportes/reportes.module';
 
 @Module({
-  imports: [AuthModule, EmpresasModule, UsuariosModule, RolesUsuariosModule, ClientesModule, FrutasModule, VariedadesModule, CalidadesModule, TiposJabaModule, SedesModule, CamionesModule, LugaresOperativosModule, PuestosModule, OperacionesCargaModule, DetalleCargaModule, ItemsRepartoModule, GuiasOperativasModule, EntregasModule, DashboardModule, IncidenciasModule, JabasModule, EvidenciasModule, LogsActividadModule, CategoriasModule, ModulosModule, RolesModulosModule],
+  imports: [AuthModule, EmpresasModule, UsuariosModule, RolesUsuariosModule, ClientesModule, FrutasModule, VariedadesModule, CalidadesModule, TiposJabaModule, SedesModule, CamionesModule, LugaresOperativosModule, PuestosModule, OperacionesCargaModule, DetalleCargaModule, ItemsRepartoModule, GuiasOperativasModule, EntregasModule, DashboardModule, IncidenciasModule, JabasModule, EvidenciasModule, LogsActividadModule, CategoriasModule, ModulosModule, RolesModulosModule, ReportesModule],
   controllers: [AppController],
   providers: [AppService],
 })

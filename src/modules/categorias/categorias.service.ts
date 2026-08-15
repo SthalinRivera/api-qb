@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../config/prisma/prisma.service';
 import { CreateCategoriaDto } from './dto/create-categoria.dto';
 import { UpdateCategoriaDto } from './dto/update-categoria.dto';
+import { ReorderCategoriasDto } from './dto/reorder-categorias.dto';
 
 @Injectable()
 export class CategoriasService {
@@ -60,6 +61,17 @@ export class CategoriasService {
 
     async changeState(id: number, estado: boolean) {
         return this.update(id, { estado });
+    }
+
+    async reorder(dto: ReorderCategoriasDto) {
+        const operations = dto.items.map((item) =>
+            this.prisma.categorias.update({
+                where: { id_categoria: BigInt(item.id_categoria) },
+                data: { orden: item.orden },
+            }),
+        );
+        await this.prisma.$transaction(operations);
+        return this.findAll();
     }
 
     async remove(id: number) {

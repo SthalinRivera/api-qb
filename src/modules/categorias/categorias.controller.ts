@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { CategoriasService } from './categorias.service';
 import { CreateCategoriaDto } from './dto/create-categoria.dto';
 import { UpdateCategoriaDto } from './dto/update-categoria.dto';
+import { ReorderCategoriasDto } from './dto/reorder-categorias.dto';
 
 @ApiTags('Categorías')
 @Controller('categorias')
@@ -20,6 +21,12 @@ export class CategoriasController {
     findAll(@Query('estado') estado?: string) {
         const estadoBool = estado === 'true' ? true : estado === 'false' ? false : undefined;
         return this.categoriasService.findAll(estadoBool);
+    }
+
+    @Patch('reorder')
+    @ApiOperation({ summary: 'Reordenar categorías' })
+    reorder(@Body() dto: ReorderCategoriasDto) {
+        return this.categoriasService.reorder(dto);
     }
 
     @Get(':id')
