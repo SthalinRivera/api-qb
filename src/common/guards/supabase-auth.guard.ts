@@ -4,7 +4,9 @@ import WebSocket from 'ws';
 
 @Injectable()
 export class SupabaseAuthGuard implements CanActivate {
-  private supabase = createClient(
+  private readonly isAuthEnabled = process.env.ENABLE_AUTH === 'false';
+
+  private readonly supabase = createClient(
     process.env.SUPABASE_URL!,
     process.env.SUPABASE_ANON_KEY!,
     {
@@ -14,11 +16,18 @@ export class SupabaseAuthGuard implements CanActivate {
     }
   );
 
-  // ⚠️ ELIMINA el constructor con PrismaService, ya no lo necesitas
-  // constructor(private prisma: PrismaService) { }
-
+  // ⚠️ Código de prueba temporal: dejar desactivado el token por ahora.
+  // Cuando quieras volver a usar Supabase, cambia ENABLE_AUTH=true y reactivas
+  // la validación original que está más abajo.
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
+
+    if (!this.isAuthEnabled) {
+      request.user = request.user ?? { email: 'dev@test.local', role: 'developer' };
+      return true;
+    }
+
+    // Validación original de Supabase (mantener solo para pruebas / reactivación).
     const authHeader = request.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
       throw new UnauthorizedException('Token no proporcionado');
@@ -30,9 +39,7 @@ export class SupabaseAuthGuard implements CanActivate {
       throw new UnauthorizedException('Token inválido');
     }
 
-    // ✅ Solo asigna el usuario de Supabase al request, sin tocar la BD
-    request.user = user; // objeto completo de Supabase
-
+    request.user = user;
     return true;
   }
 }
