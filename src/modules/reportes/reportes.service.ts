@@ -19,6 +19,7 @@ import {
   ReporteUsuariosRoles,
   ReporteActividadUsuarios,
   ReporteModulosPorRol,
+  DashboardGraficasResponse,
 } from './dto/reportes-response.dto';
 
 @Injectable()
@@ -1024,6 +1025,213 @@ export class ReportesService {
           categoria: rm.modulos.categorias?.nombre || '',
         })),
       })),
+    };
+  }
+
+  async getDashboardGraficas(query: QueryReportesDto): Promise<DashboardGraficasResponse> {
+    const inicio = this.getFechaInicio(query);
+    const fin = this.getFechaFin(query);
+
+    // 1. Operaciones por fecha
+    const operacionesAgrupadas = await this.prisma.operaciones_carga.groupBy({
+      by: ['fecha_carga'],
+      where: {
+        fecha_carga: { gte: inicio, lte: fin },
+      },
+      _count: { id_operacion: true },
+      orderBy: { fecha_carga: 'asc' },
+    });
+
+    const operaciones_por_fecha: DashboardGraficasResponse['operaciones_por_fecha'] = [];
+    for (const op of operacionesAgrupadas) {
+      const jabasResult = await this.prisma.detalle_carga.aggregate({
+        where: {
+          operaciones_carga: { fecha_carga: op.fecha_carga },
+        },
+        _sum: { cantidad_jabas: true },
+      });
+      operaciones_por_fecha.push({
+        fecha: new Date(op.fecha_carga).toISOString().split('T')[0],
+        total_operaciones: op._count.id_operacion,
+        total_jabas: jabasResult._sum.cantidad_jabas || 0,
+      });
+    }
+
+    // 2. Jabas por fecha con desglose por tipo
+    const detallesConFecha = await this.prisma.detalle_carga.findMany({
+      where: {
+        operaciones_carga: { fecha_carga: { gte: inicio, lte: fin } },
+      },
+      include: {
+        operaciones_carga: { select: { fecha_carga: true } },
+        tipos_jaba: { select: { nombre: true } },
+      },
+    });
+
+    const jabasAgrupadas: {
+      [fecha: string]: { total: number; porTipo: { [tipo: string]: number } };
+    } = {};
+    for (const d of detallesConFecha) {
+      const fecha = new Date(d.operaciones_carga.fecha_carga).toISOString().split('T')[0];
+      if (!jabasAgrupadas[fecha]) jabasAgrupadas[fecha] = { total: 0, porTipo: {} };
+      jabasAgrupadas[fecha].total += d.cantidad_jabas;
+      const tipo = d.tipos_jaba?.nombre || 'Sin tipo';
+      jabasAgrupadas[fecha].porTipo[tipo] = (jabasAgrupadas[fecha].porTipo[tipo] || 0) + d.cantidad_jabas;
+    }
+
+    const jabas_por_fecha: DashboardGraficasResponse['jabas_por_fecha'] = Object.entries(jabasAgrupadas)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([fecha, data]) => ({
+        fecha,
+        total_jabas: data.total,
+        jabas_por_tipo: Object.entries(data.porTipo).map(([tipo, cantidad]) => ({ tipo, cantidad })),
+      }));
+
+    // 3. Guías por estado
+    const guiasTodas = await this.prisma.guias_operativas.findMany({
+      where: {
+        fecha_emision: { gte: inicio, lte: fin },
+      },
+      select: { estado: true, fecha_emision: true },
+    });
+
+    const guiasPorEstado: { [key: string]: number } = {};
+    guiasTodas.forEach((g) => {
+      const estado = g.estado || 'sin_estado';
+      guiasPorEstado[estado] = (guiasPorEstado[estado] || 0) + 1;
+    });
+
+    const guias_por_estado: DashboardGraficasResponse['guias_por_estado'] = Object.entries(guiasPorEstado).map(
+      ([estado, cantidad]) => ({ estado, cantidad }),
+    );
+
+    // 4. Guías por fecha (desglose emitidas/firmadas/anuladas)
+    const guiasPorFecha: {
+      [fecha: string]: { emitidas: number; firmadas: number; anuladas: number };
+    } = {};
+    guiasTodas.forEach((g) => {
+      const fecha = new Date(g.fecha_emision).toISOString().split('T')[0];
+      if (!guiasPorFecha[fecha]) guiasPorFecha[fecha] = { emitidas: 0, firmadas: 0, anuladas: 0 };
+      if (g.estado === 'emitida') guiasPorFecha[fecha].emitidas++;
+      else if (g.estado === 'firmada') guiasPorFecha[fecha].firmadas++;
+      else if (g.estado === 'anulada') guiasPorFecha[fecha].anuladas++;
+    });
+
+    const guias_por_fecha: DashboardGraficasResponse['guias_por_fecha'] = Object.entries(guiasPorFecha)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([fecha, data]) => ({ fecha, ...data }));
+
+    // 5. Entregas por fecha
+    const entregasTodas = await this.prisma.entregas.findMany({
+      where: {
+        fecha_entrega: { gte: inicio, lte: fin },
+      },
+      select: {
+        fecha_entrega: true,
+        estado_entrega: true,
+        cantidad_entregada: true,
+        cantidad_rechazada: true,
+      },
+    });
+
+    const entregasAgrupadas: {
+      [fecha: string]: {
+        total: number;
+        entregadas: number;
+        parciales: number;
+        rechazadas: number;
+        jabas_entregadas: number;
+      };
+    } = {};
+    entregasTodas.forEach((e) => {
+      const fecha = new Date(e.fecha_entrega).toISOString().split('T')[0];
+      if (!entregasAgrupadas[fecha]) {
+        entregasAgrupadas[fecha] = { total: 0, entregadas: 0, parciales: 0, rechazadas: 0, jabas_entregadas: 0 };
+      }
+      entregasAgrupadas[fecha].total++;
+      if (e.estado_entrega === 'entregado_total') entregasAgrupadas[fecha].entregadas++;
+      else if (e.estado_entrega === 'entregado_parcial') entregasAgrupadas[fecha].parciales++;
+      else if (e.estado_entrega === 'rechazado') entregasAgrupadas[fecha].rechazadas++;
+      entregasAgrupadas[fecha].jabas_entregadas += e.cantidad_entregada;
+    });
+
+    const entregas_por_fecha: DashboardGraficasResponse['entregas_por_fecha'] = Object.entries(entregasAgrupadas)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([fecha, data]) => ({ fecha, ...data }));
+
+    // 6. Incidencias por tipo
+    const incidenciasTodas = await this.prisma.incidencias.findMany({
+      where: {
+        fecha_incidencia: { gte: inicio, lte: fin },
+      },
+      select: { tipo_incidencia: true },
+    });
+
+    const incidenciasPorTipo: { [key: string]: number } = {};
+    incidenciasTodas.forEach((i) => {
+      incidenciasPorTipo[i.tipo_incidencia] = (incidenciasPorTipo[i.tipo_incidencia] || 0) + 1;
+    });
+
+    const incidencias_por_tipo: DashboardGraficasResponse['incidencias_por_tipo'] = Object.entries(
+      incidenciasPorTipo,
+    ).map(([tipo, cantidad]) => ({ tipo, cantidad }));
+
+    // 7. Incidencias por fecha
+    const incidenciasConDetalle = await this.prisma.incidencias.findMany({
+      where: {
+        fecha_incidencia: { gte: inicio, lte: fin },
+      },
+      select: { fecha_incidencia: true, estado: true },
+    });
+
+    const incidenciasPorFecha: {
+      [fecha: string]: { total: number; abiertas: number; en_proceso: number; cerradas: number };
+    } = {};
+    incidenciasConDetalle.forEach((i) => {
+      const fecha = new Date(i.fecha_incidencia).toISOString().split('T')[0];
+      if (!incidenciasPorFecha[fecha]) {
+        incidenciasPorFecha[fecha] = { total: 0, abiertas: 0, en_proceso: 0, cerradas: 0 };
+      }
+      incidenciasPorFecha[fecha].total++;
+      if (i.estado === 'abierta') incidenciasPorFecha[fecha].abiertas++;
+      else if (i.estado === 'en_proceso') incidenciasPorFecha[fecha].en_proceso++;
+      else if (i.estado === 'cerrada') incidenciasPorFecha[fecha].cerradas++;
+    });
+
+    const incidencias_por_fecha: DashboardGraficasResponse['incidencias_por_fecha'] = Object.entries(
+      incidenciasPorFecha,
+    )
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([fecha, data]) => ({ fecha, ...data }));
+
+    // 8. Jabas entregadas por fecha (desglose entregada vs rechazada)
+    const jabasEntregadasPorFecha: { [fecha: string]: { entregada: number; rechazada: number } } = {};
+    entregasTodas.forEach((e) => {
+      const fecha = new Date(e.fecha_entrega).toISOString().split('T')[0];
+      if (!jabasEntregadasPorFecha[fecha]) jabasEntregadasPorFecha[fecha] = { entregada: 0, rechazada: 0 };
+      jabasEntregadasPorFecha[fecha].entregada += e.cantidad_entregada;
+      jabasEntregadasPorFecha[fecha].rechazada += e.cantidad_rechazada || 0;
+    });
+
+    const jabas_entregadas_por_fecha: DashboardGraficasResponse['jabas_entregadas_por_fecha'] = Object.entries(
+      jabasEntregadasPorFecha,
+    )
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([fecha, data]) => ({
+        fecha,
+        cantidad_entregada: data.entregada,
+        cantidad_rechazada: data.rechazada,
+      }));
+
+    return {
+      operaciones_por_fecha,
+      jabas_por_fecha,
+      guias_por_estado,
+      guias_por_fecha,
+      entregas_por_fecha,
+      incidencias_por_tipo,
+      incidencias_por_fecha,
+      jabas_entregadas_por_fecha,
     };
   }
 }

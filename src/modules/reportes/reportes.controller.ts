@@ -131,4 +131,11 @@ export class ReportesController {
   getModulosPorRol(@Query() query: QueryReportesDto) {
     return this.reportesService.getModulosPorRol(query);
   }
+
+  @Get('dashboard-graficas')
+  @Roles('administrador', 'Supervisor')
+  @ApiOperation({ summary: 'Datos agregados para gráficas del dashboard' })
+  getDashboardGraficas(@Query() query: QueryReportesDto) {
+    return this.reportesService.getDashboardGraficas(query);
+  }
 }

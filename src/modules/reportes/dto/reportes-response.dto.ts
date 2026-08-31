@@ -300,3 +300,14 @@ export interface ReporteModulosPorRol {
     }[];
   }[];
 }
+
+export interface DashboardGraficasResponse {
+  operaciones_por_fecha: { fecha: string; total_operaciones: number; total_jabas: number }[];
+  jabas_por_fecha: { fecha: string; total_jabas: number; jabas_por_tipo: { tipo: string; cantidad: number }[] }[];
+  guias_por_estado: { estado: string; cantidad: number }[];
+  guias_por_fecha: { fecha: string; emitidas: number; firmadas: number; anuladas: number }[];
+  entregas_por_fecha: { fecha: string; total: number; entregadas: number; parciales: number; rechazadas: number; jabas_entregadas: number }[];
+  incidencias_por_tipo: { tipo: string; cantidad: number }[];
+  incidencias_por_fecha: { fecha: string; total: number; abiertas: number; en_proceso: number; cerradas: number }[];
+  jabas_entregadas_por_fecha: { fecha: string; cantidad_entregada: number; cantidad_rechazada: number }[];
+}

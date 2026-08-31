@@ -4,7 +4,7 @@ import WebSocket from 'ws';
 
 @Injectable()
 export class SupabaseAuthGuard implements CanActivate {
-  private readonly isAuthEnabled = process.env.ENABLE_AUTH === 'false';
+  private readonly isAuthEnabled = process.env.ENABLE_AUTH === 'true';
 
   private readonly supabase = createClient(
     process.env.SUPABASE_URL!,
@@ -23,7 +23,7 @@ export class SupabaseAuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
 
     if (!this.isAuthEnabled) {
-      request.user = request.user ?? { email: 'dev@test.local', role: 'developer' };
+      request.user = request.user ?? { email: 'sthalin.11@gmail.com', role: 'administrador' };
       return true;
     }
 
