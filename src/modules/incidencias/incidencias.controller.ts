@@ -11,11 +11,13 @@ import {
   UploadedFiles,
   ParseIntPipe,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { IncidenciasService } from './incidencias.service';
 import { CreateIncidenciaDto } from './dto/create-incidencia.dto';
 import { UpdateIncidenciaDto } from './dto/update-incidencia.dto';
+import { QueryIncidenciasDto } from './dto/query-incidencias.dto';
 import { SupabaseAuthGuard } from 'src/common/guards/supabase-auth.guard';
 import { AuthService } from '../auth/auth.service';
 
@@ -45,8 +47,8 @@ export class IncidenciasController {
   }
 
   @Get()
-  findAll() {
-    return this.incidenciasService.findAll();
+  findAll(@Query() query: QueryIncidenciasDto) {
+    return this.incidenciasService.findAll(query);
   }
 
   @Get(':id')

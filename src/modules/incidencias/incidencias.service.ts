@@ -4,6 +4,7 @@ import { PrismaService } from '../../config/prisma/prisma.service';
 import { R2Service } from '../../common/shared/r2.service';
 import { CreateIncidenciaDto } from './dto/create-incidencia.dto';
 import { UpdateIncidenciaDto } from './dto/update-incidencia.dto';
+import { QueryIncidenciasDto } from './dto/query-incidencias.dto';
 import { evidencias } from '@prisma/client';
 
 
@@ -146,13 +147,28 @@ export class IncidenciasService {
   // ============================================================
   // OBTENER TODAS las incidencias con sus evidencias
   // ============================================================
-  async findAll() {
+  async findAll(query?: QueryIncidenciasDto) {
     console.log('📋 Obteniendo todas las incidencias...');
+    const where: any = {};
+    if (query?.estado) where.estado = query.estado;
+    if (query?.tipo_incidencia) where.tipo_incidencia = query.tipo_incidencia;
+    if (query?.fecha_desde || query?.fecha_hasta) {
+      where.fecha_incidencia = {};
+      if (query.fecha_desde) where.fecha_incidencia.gte = new Date(query.fecha_desde);
+      if (query.fecha_hasta) {
+        const end = new Date(query.fecha_hasta);
+        end.setDate(end.getDate() + 1);
+        where.fecha_incidencia.lt = end;
+      }
+    }
+
     const incidencias = await this.prisma.incidencias.findMany({
+      where,
       include: {
         empresas: true,
         usuarios: true,
       },
+      orderBy: { fecha_incidencia: 'desc' },
     });
 
     const ids = incidencias.map(i => i.id_incidencia);
