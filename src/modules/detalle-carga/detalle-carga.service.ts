@@ -1,5 +1,11 @@
+import { Prisma } from '@prisma/client';
+import { cargaEditable } from '../operaciones-carga/flujo-operacion';
 // detalle-carga.service.ts
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../config/prisma/prisma.service';
 import { CreateDetalleCargaDto } from './dto/create-detalle-carga.dto';
 import { CreateDetalleCargaForOperacionDto } from './dto/create-detalle-carga-for-operacion.dto';
@@ -9,26 +15,62 @@ import { UpdateDetalleCalidadDto } from './dto/update-detalle-calidad.dto';
 
 @Injectable()
 export class DetalleCargaService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
-  // detalle-carga.service.ts (fragmento)
+  private async editableDetalle(tx: Prisma.TransactionClient, id: number) {
+    const ref = await tx.detalle_carga.findUnique({
+      where: { id_detalle_carga: id },
+    });
+    if (!ref) throw new NotFoundException('Producto de carga no encontrado.');
+    await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${ref.id_operacion} FOR UPDATE`;
+    const detalle = await tx.detalle_carga.findUniqueOrThrow({
+      where: { id_detalle_carga: id },
+      include: {
+        operaciones_carga: true,
+        detalle_carga_calidades: true,
+        items_reparto: { include: { entregas: true, guias_operativas: true } },
+      },
+    });
+    if (!cargaEditable(detalle.operaciones_carga.estado))
+      throw new BadRequestException(
+        'Esta carga ya fue confirmada o está cancelada y no puede modificarse.',
+      );
+    return detalle;
+  }
 
   async create(operacionId: number, dto: CreateDetalleCargaForOperacionDto) {
     const operacion = await this.prisma.operaciones_carga.findUnique({
       where: { id_operacion: operacionId },
     });
-    if (!operacion) throw new NotFoundException(`Operación con ID ${operacionId} no existe`);
-    if (operacion.estado === 'repartiendo' || operacion.estado === 'cancelada') {
-      throw new BadRequestException('No se puede agregar detalles a una operación en tránsito o cancelada');
+    if (!operacion)
+      throw new NotFoundException(`Operación con ID ${operacionId} no existe`);
+    if (!cargaEditable(operacion.estado)) {
+      throw new BadRequestException(
+        'No se puede agregar detalles a una operación en tránsito o cancelada',
+      );
     }
 
+    if (!dto.es_reparto && (!dto.id_cliente_receptor || !dto.id_puesto))
+      throw new BadRequestException(
+        'Selecciona receptor y puesto para la entrega directa.',
+      );
+    if (dto.es_reparto && (dto.id_cliente_receptor || dto.id_puesto))
+      throw new BadRequestException(
+        'Asigna los receptores después de clasificar la carga para reparto.',
+      );
     await this.validateRelations(dto);
 
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${BigInt(operacionId)} FOR UPDATE`;
+      const actual = await tx.operaciones_carga.findUniqueOrThrow({
+        where: { id_operacion: operacionId },
+      });
+      if (!cargaEditable(actual.estado))
+        throw new BadRequestException('La carga ya fue confirmada.');
       // 1. Crear detalle de carga
       const detalle = await tx.detalle_carga.create({
         data: {
-          id_empresa: 1,
+          id_empresa: operacion.id_empresa,
           id_operacion: operacionId,
           id_cliente_emisor: dto.id_cliente_emisor,
           id_fruta: dto.id_fruta,
@@ -56,14 +98,16 @@ export class DetalleCargaService {
           select: { seccion: true },
         });
         if (!relacion) {
-          throw new BadRequestException(`El cliente receptor no tiene el puesto ${dto.id_puesto} activo.`);
+          throw new BadRequestException(
+            `El cliente receptor no tiene el puesto ${dto.id_puesto} activo.`,
+          );
         }
 
         const seccionFinal = dto.id_seccion ?? relacion.seccion;
 
         itemReparto = await tx.items_reparto.create({
           data: {
-            id_empresa: 1,
+            id_empresa: operacion.id_empresa,
             id_detalle_carga: detalle.id_detalle_carga,
             id_cliente_receptor: dto.id_cliente_receptor,
             id_puesto: dto.id_puesto,
@@ -76,12 +120,11 @@ export class DetalleCargaService {
         });
       }
 
-      // 3. Si requiere retorno de jabas, crear jabas_por_pagar (sin entrega aún)
-      //    jabas_por_cobrar se creará cuando se registre la entrega real.
-      if (detalle.requiere_retorno_jabas) {
+      // El compromiso con el emisor nace en la carga; el cobro al receptor nace en la entrega.
+      if (detalle.requiere_retorno_jabas)
         await tx.jabas_por_pagar.create({
           data: {
-            id_empresa: 1,
+            id_empresa: operacion.id_empresa,
             id_entrega: null,
             id_cliente_emisor: detalle.id_cliente_emisor,
             id_tipo_jaba: detalle.id_tipo_jaba,
@@ -90,11 +133,11 @@ export class DetalleCargaService {
             cantidad_pagada: 0,
             saldo_pendiente: detalle.cantidad_jabas,
             estado: 'pendiente',
-            observaciones: 'Generado automáticamente al crear detalle de carga (sin entrega aún)',
+            observaciones:
+              'Generado automáticamente al crear detalle de carga #' +
+              detalle.id_detalle_carga,
           },
         });
-      }
-
       // Actualizar estado de operación
       if (operacion.estado === 'pendiente') {
         await tx.operaciones_carga.update({
@@ -131,10 +174,13 @@ export class DetalleCargaService {
         variedades: true,
         tipos_jaba: true,
         detalle_carga_calidades: { include: { calidades: true } },
-        items_reparto: {                    // 🔥 incluimos el item de reparto
+        items_reparto: {
+          // 🔥 incluimos el item de reparto
           include: {
-            clientes: true,                // para el nombre del cliente receptor
-            guias_operativas: true,        // 🔥 la guía asociada (si existe)
+            clientes: true, // para el nombre del cliente receptor
+            entregas: true,
+            puestos: true,
+            guias_operativas: true, // 🔥 la guía asociada (si existe)
           },
         },
       },
@@ -159,7 +205,9 @@ export class DetalleCargaService {
       },
     });
     if (!detalle) {
-      throw new NotFoundException(`Detalle de carga con ID ${id} no encontrado`);
+      throw new NotFoundException(
+        `Detalle de carga con ID ${id} no encontrado`,
+      );
     }
     return detalle;
   }
@@ -169,63 +217,120 @@ export class DetalleCargaService {
    * No se permite cambiar el item de reparto asociado (se gestiona aparte).
    */
   async update(id: number, dto: UpdateDetalleCargaDto) {
-    const detalle = await this.findOne(id);
-
-    if (Object.keys(dto).length === 0) {
-      throw new BadRequestException('No se enviaron datos para actualizar');
-    }
-
-    // Verificar que la operación no esté en curso
-    const operacion = await this.prisma.operaciones_carga.findUnique({
-      where: { id_operacion: detalle.id_operacion },
-      select: { estado: true },
-    });
-    if (operacion?.estado === 'repartiendo' || operacion?.estado === 'cancelada') {
-      throw new BadRequestException('No se puede modificar un detalle de una operación en tránsito o cancelada');
-    }
-
-    await this.validateRelations(dto);
-
-    return this.prisma.detalle_carga.update({
-      where: { id_detalle_carga: id },
-      data: {
-        id_cliente_emisor: dto.id_cliente_emisor,
-        id_fruta: dto.id_fruta,
-        id_variedad: dto.id_variedad,
-        id_tipo_jaba: dto.id_tipo_jaba,
-        cantidad_jabas: dto.cantidad_jabas,
-        es_reparto: dto.es_reparto,
-        instruccion_reparto: dto.instruccion_reparto,
-        observaciones: dto.observaciones,
-        requiere_retorno_jabas: dto.requiere_retorno_jabas,
-      },
-      include: {
-        clientes: true,
-        frutas: true,
-        variedades: true,
-        tipos_jaba: true,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const detalle = await this.editableDetalle(tx, id);
+      if (!Object.keys(dto).length)
+        throw new BadRequestException('No se enviaron cambios.');
+      if (dto.es_reparto !== undefined && dto.es_reparto !== detalle.es_reparto)
+        throw new BadRequestException(
+          'El tipo de entrega no puede cambiarse después de crear el producto.',
+        );
+      const cambiaDeuda =
+        (dto.cantidad_jabas !== undefined &&
+          dto.cantidad_jabas !== detalle.cantidad_jabas) ||
+        (dto.id_cliente_emisor !== undefined &&
+          BigInt(dto.id_cliente_emisor) !== detalle.id_cliente_emisor) ||
+        (dto.id_tipo_jaba !== undefined &&
+          BigInt(dto.id_tipo_jaba) !== detalle.id_tipo_jaba) ||
+        (dto.requiere_retorno_jabas !== undefined &&
+          dto.requiere_retorno_jabas !== detalle.requiere_retorno_jabas);
+      if (
+        cambiaDeuda &&
+        (detalle.requiere_retorno_jabas || dto.requiere_retorno_jabas)
+      )
+        throw new BadRequestException(
+          'Esta carga tiene retorno de jabas. Para cambiar cantidades o emisor, revisa primero su saldo de jabas por pagar.',
+        );
+      const clasificado = detalle.detalle_carga_calidades.reduce(
+        (sum, c) => sum + c.cantidad,
+        0,
+      );
+      const asignado = detalle.items_reparto.reduce(
+        (sum, i) => sum + i.cantidad_asignada,
+        0,
+      );
+      if (dto.cantidad_jabas !== undefined) {
+        if (
+          !Number.isInteger(dto.cantidad_jabas) ||
+          dto.cantidad_jabas <= 0 ||
+          dto.cantidad_jabas < clasificado
+        )
+          throw new BadRequestException(
+            'La cantidad debe ser positiva y no menor que las jabas clasificadas.',
+          );
+        if (detalle.es_reparto && dto.cantidad_jabas < asignado)
+          throw new BadRequestException(
+            'Primero quita los destinos que necesitas reasignar.',
+          );
+        if (!detalle.es_reparto && detalle.items_reparto.length > 1)
+          throw new BadRequestException(
+            'Esta carga tiene varios destinos. Revisa sus asignaciones antes de cambiar la cantidad.',
+          );
+        if (!detalle.es_reparto && detalle.items_reparto.length === 1)
+          await tx.items_reparto.update({
+            where: {
+              id_item_reparto: detalle.items_reparto[0].id_item_reparto,
+            },
+            data: { cantidad_asignada: dto.cantidad_jabas },
+          });
+      }
+      await this.validateRelations(dto);
+      return tx.detalle_carga.update({
+        where: { id_detalle_carga: id },
+        data: {
+          id_cliente_emisor: dto.id_cliente_emisor,
+          id_fruta: dto.id_fruta,
+          id_variedad: dto.id_variedad,
+          id_tipo_jaba: dto.id_tipo_jaba,
+          cantidad_jabas: dto.cantidad_jabas,
+          instruccion_reparto: dto.instruccion_reparto,
+          observaciones: dto.observaciones,
+          requiere_retorno_jabas: dto.requiere_retorno_jabas,
+        },
+        include: {
+          clientes: true,
+          frutas: true,
+          variedades: true,
+          tipos_jaba: true,
+        },
+      });
     });
   }
 
-  /**
-   * Elimina un detalle de carga (borrado físico).
-   * Las calidades asociadas se eliminan en cascada si la relación está configurada.
-   */
   async remove(id: number) {
-    const detalle = await this.findOne(id);
-
-    // Verificar que la operación no esté en curso
-    const operacion = await this.prisma.operaciones_carga.findUnique({
-      where: { id_operacion: detalle.id_operacion },
-      select: { estado: true },
-    });
-    if (operacion?.estado === 'repartiendo' || operacion?.estado === 'cancelada') {
-      throw new BadRequestException('No se puede eliminar un detalle de una operación en tránsito o cancelada');
-    }
-
-    return this.prisma.detalle_carga.delete({
-      where: { id_detalle_carga: id },
+    return this.prisma.$transaction(async (tx) => {
+      const detalle = await this.editableDetalle(tx, id);
+      if (detalle.requiere_retorno_jabas) {
+        const deuda = await tx.jabas_por_pagar.findFirst({
+          where: {
+            id_empresa: detalle.id_empresa,
+            observaciones:
+              'Generado automáticamente al crear detalle de carga #' +
+              detalle.id_detalle_carga,
+          },
+        });
+        if (!deuda || deuda.cantidad_pagada > 0)
+          throw new BadRequestException(
+            'Esta carga tiene un saldo de jabas anterior o con pagos. Revisa Jabas por pagar antes de eliminarla.',
+          );
+        await tx.jabas_por_pagar.delete({
+          where: { id_jaba_pagar: deuda.id_jaba_pagar },
+        });
+      }
+      if (
+        detalle.items_reparto.some(
+          (i) => i.entregas.length || i.guias_operativas.length,
+        )
+      )
+        throw new BadRequestException(
+          'Este producto tiene entregas o guías y no puede eliminarse.',
+        );
+      const ids = detalle.items_reparto.map((i) => i.id_item_reparto);
+      await tx.items_reparto_detalle.deleteMany({
+        where: { id_item_reparto: { in: ids } },
+      });
+      await tx.items_reparto.deleteMany({ where: { id_detalle_carga: id } });
+      return tx.detalle_carga.delete({ where: { id_detalle_carga: id } });
     });
   }
 
@@ -247,187 +352,159 @@ export class DetalleCargaService {
    * Verifica que la calidad exista y que no esté ya asociada.
    */
   async addCalidad(detalleId: number, dto: CreateDetalleCalidadDto) {
-    // ---- LOG 1: Ver qué llega al servicio ----
-    console.log('[addCalidad] DTO recibido:', JSON.stringify(dto, null, 2));
-    console.log('[addCalidad] precio_unitario raw:', dto.precio_unitario);
-    console.log('[addCalidad] tipo de precio_unitario:', typeof dto.precio_unitario);
-
-    // ---- Validación extra: asegurar que sea número (o null) ----
-    let precioFinal: number | null = null;
-    if (dto.precio_unitario !== undefined && dto.precio_unitario !== null) {
-      const num = Number(dto.precio_unitario);
-      if (!isNaN(num) && num >= 0) {
-        precioFinal = num;
-      } else {
-        console.warn('[addCalidad] precio_unitario inválido, se usará null');
-      }
-    }
-    console.log('[addCalidad] precioFinal a guardar:', precioFinal);
-
-    // 1. Verificar que el detalle exista
-    const detalle = await this.findOne(detalleId);
-
-    // Verificar que la operación no esté en curso
-    const operacion = await this.prisma.operaciones_carga.findUnique({
-      where: { id_operacion: detalle.id_operacion },
-      select: { estado: true },
-    });
-    if (operacion?.estado === 'repartiendo' || operacion?.estado === 'cancelada') {
-      throw new BadRequestException('No se pueden modificar calidades de una operación en tránsito o cancelada');
-    }
-
-    // 2. Verificar que la calidad exista
-    const calidad = await this.prisma.calidades.findUnique({
-      where: { id_calidad: dto.id_calidad },
-    });
-    if (!calidad) {
-      throw new NotFoundException(`Calidad con ID ${dto.id_calidad} no existe`);
-    }
-
-    // 3. Evitar duplicado de la misma calidad en el mismo detalle
-    const existing = await this.prisma.detalle_carga_calidades.findFirst({
-      where: {
-        id_detalle_carga: detalleId,
-        id_calidad: dto.id_calidad,
-      },
-    });
-    if (existing) {
-      throw new BadRequestException(`La calidad ya está asociada a este detalle`);
-    }
-
-    // 4. Crear la calidad en detalle_carga_calidades
-    const nuevaCalidad = await this.prisma.detalle_carga_calidades.create({
-      data: {
-        id_empresa: 1, // desde token
-        id_detalle_carga: detalleId,
-        id_calidad: dto.id_calidad,
-        cantidad: dto.cantidad,
-        precio_unitario: precioFinal, // <-- USAR EL VALOR SANEADO
-      },
-      include: { calidades: true },
-    });
-
-    // 5. Si el detalle requiere reparto, vincular con items_reparto_detalle
-    if (detalle.es_reparto) {
-      const itemReparto = await this.prisma.items_reparto.findFirst({
+    return this.prisma.$transaction(async (tx) => {
+      const referencia = await tx.detalle_carga.findUnique({
         where: { id_detalle_carga: detalleId },
       });
-      if (itemReparto) {
-        await this.prisma.items_reparto_detalle.create({
-          data: {
-            id_empresa: 1,
-            id_item_reparto: itemReparto.id_item_reparto,
-            id_detalle_carga_calidad: nuevaCalidad.id_detalle_carga_calidad,
-            cantidad: dto.cantidad,
-            precio_unitario: precioFinal, // <-- MISMO VALOR SANEADO
-            observaciones: null,
-          },
-        });
-      }
-    }
+      if (!referencia) throw new NotFoundException('Carga no encontrada.');
+      await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${referencia.id_operacion} FOR UPDATE`;
+      const precioFinal =
+        dto.precio_unitario == null ? null : Number(dto.precio_unitario);
+      if (
+        precioFinal !== null &&
+        (!Number.isFinite(precioFinal) || precioFinal < 0)
+      )
+        throw new BadRequestException(
+          'El precio debe ser un número mayor o igual a cero.',
+        );
+      // 1. Verificar que el detalle exista
+      const detalle = await tx.detalle_carga.findUniqueOrThrow({
+        where: { id_detalle_carga: detalleId },
+        include: { detalle_carga_calidades: true },
+      });
 
-    return nuevaCalidad;
+      // Verificar que la operación no esté en curso
+      const operacion = await tx.operaciones_carga.findUnique({
+        where: { id_operacion: detalle.id_operacion },
+        select: { estado: true },
+      });
+      if (!operacion || !cargaEditable(operacion.estado)) {
+        throw new BadRequestException(
+          'No se pueden modificar calidades de una operación en tránsito o cancelada',
+        );
+      }
+
+      if (!detalle.es_reparto)
+        throw new BadRequestException(
+          'La entrega directa no requiere clasificación por calidad.',
+        );
+      const total = detalle.detalle_carga_calidades.reduce(
+        (sum, c) => sum + c.cantidad,
+        0,
+      );
+      if (
+        !Number.isInteger(dto.cantidad) ||
+        dto.cantidad <= 0 ||
+        total + dto.cantidad > detalle.cantidad_jabas
+      )
+        throw new BadRequestException(
+          'La cantidad de calidad excede las jabas pendientes de clasificar.',
+        );
+      // 2. Verificar que la calidad exista
+      const calidad = await tx.calidades.findUnique({
+        where: { id_calidad: dto.id_calidad },
+      });
+      if (!calidad) {
+        throw new NotFoundException(
+          `Calidad con ID ${dto.id_calidad} no existe`,
+        );
+      }
+
+      // 3. Evitar duplicado de la misma calidad en el mismo detalle
+      const existing = await tx.detalle_carga_calidades.findFirst({
+        where: {
+          id_detalle_carga: detalleId,
+          id_calidad: dto.id_calidad,
+        },
+      });
+      if (existing) {
+        throw new BadRequestException(
+          `La calidad ya está asociada a este detalle`,
+        );
+      }
+
+      // 4. Crear la calidad en detalle_carga_calidades
+      const nuevaCalidad = await tx.detalle_carga_calidades.create({
+        data: {
+          id_empresa: detalle.id_empresa,
+          id_detalle_carga: detalleId,
+          id_calidad: dto.id_calidad,
+          cantidad: dto.cantidad,
+          precio_unitario: precioFinal, // <-- USAR EL VALOR SANEADO
+        },
+        include: { calidades: true },
+      });
+
+      return nuevaCalidad;
+    });
   }
   /**
    * Actualiza la cantidad y/o precio unitario de una calidad asociada.
    */
   async updateCalidad(calidadId: number, dto: UpdateDetalleCalidadDto) {
-    const calidadRel = await this.prisma.detalle_carga_calidades.findUnique({
-      where: { id_detalle_carga_calidad: calidadId },
-    });
-    if (!calidadRel) {
-      throw new NotFoundException(`Relación calidad con ID ${calidadId} no encontrada`);
-    }
-
-    // Verificar que la operación no esté en curso
-    const detalleInfo = await this.prisma.detalle_carga.findUnique({
-      where: { id_detalle_carga: calidadRel.id_detalle_carga },
-      select: { id_operacion: true, es_reparto: true },
-    });
-    if (detalleInfo?.id_operacion) {
-      const operacion = await this.prisma.operaciones_carga.findUnique({
-        where: { id_operacion: detalleInfo.id_operacion },
-        select: { estado: true },
+    return this.prisma.$transaction(async (tx) => {
+      const calidad = await tx.detalle_carga_calidades.findUnique({
+        where: { id_detalle_carga_calidad: calidadId },
       });
-      if (operacion?.estado === 'repartiendo' || operacion?.estado === 'cancelada') {
-        throw new BadRequestException('No se pueden modificar calidades de una operación en tránsito o cancelada');
-      }
-    }
-
-    // Actualizar la calidad
-    const updated = await this.prisma.detalle_carga_calidades.update({
-      where: { id_detalle_carga_calidad: calidadId },
-      data: {
-        cantidad: dto.cantidad,
-        precio_unitario: dto.precio_unitario,
-      },
-      include: { calidades: true },
-    });
-
-    // Si el detalle es de reparto, actualizar también el items_reparto_detalle relacionado
-    if (detalleInfo?.es_reparto) {
-      const itemReparto = await this.prisma.items_reparto.findFirst({
-        where: { id_detalle_carga: calidadRel.id_detalle_carga },
+      if (!calidad) throw new NotFoundException('Calidad no encontrada.');
+      const detalle = await this.editableDetalle(
+        tx,
+        Number(calidad.id_detalle_carga),
+      );
+      if (
+        await tx.items_reparto_detalle.count({
+          where: { id_detalle_carga_calidad: calidadId },
+        })
+      )
+        throw new BadRequestException(
+          'Quita primero el destino asignado a esta calidad para poder modificarla.',
+        );
+      const otras = detalle.detalle_carga_calidades
+        .filter(
+          (c) =>
+            c.id_detalle_carga_calidad !== calidad.id_detalle_carga_calidad,
+        )
+        .reduce((sum, c) => sum + c.cantidad, 0);
+      if (
+        dto.cantidad !== undefined &&
+        (!Number.isInteger(dto.cantidad) ||
+          dto.cantidad <= 0 ||
+          otras + dto.cantidad > detalle.cantidad_jabas)
+      )
+        throw new BadRequestException(
+          'La cantidad excede las jabas pendientes de clasificar.',
+        );
+      if (
+        dto.precio_unitario != null &&
+        (!Number.isFinite(dto.precio_unitario) || dto.precio_unitario < 0)
+      )
+        throw new BadRequestException('El precio no es válido.');
+      return tx.detalle_carga_calidades.update({
+        where: { id_detalle_carga_calidad: calidadId },
+        data: { cantidad: dto.cantidad, precio_unitario: dto.precio_unitario },
+        include: { calidades: true },
       });
-      if (itemReparto) {
-        await this.prisma.items_reparto_detalle.updateMany({
-          where: {
-            id_item_reparto: itemReparto.id_item_reparto,
-            id_detalle_carga_calidad: calidadId,
-          },
-          data: {
-            cantidad: dto.cantidad,
-            precio_unitario: dto.precio_unitario,
-          },
-        });
-      }
-    }
-
-    return updated;
+    });
   }
 
-  /**
-   * Elimina una calidad de un detalle de carga.
-   */
   async removeCalidad(calidadId: number) {
-    const calidadRel = await this.prisma.detalle_carga_calidades.findUnique({
-      where: { id_detalle_carga_calidad: calidadId },
-    });
-    if (!calidadRel) {
-      throw new NotFoundException(`Relación calidad con ID ${calidadId} no encontrada`);
-    }
-
-    // Verificar que la operación no esté en curso
-    const detalle = await this.prisma.detalle_carga.findUnique({
-      where: { id_detalle_carga: calidadRel.id_detalle_carga },
-      select: { es_reparto: true, id_operacion: true },
-    });
-    if (detalle?.id_operacion) {
-      const operacion = await this.prisma.operaciones_carga.findUnique({
-        where: { id_operacion: detalle.id_operacion },
-        select: { estado: true },
+    return this.prisma.$transaction(async (tx) => {
+      const calidad = await tx.detalle_carga_calidades.findUnique({
+        where: { id_detalle_carga_calidad: calidadId },
       });
-      if (operacion?.estado === 'repartiendo' || operacion?.estado === 'cancelada') {
-        throw new BadRequestException('No se pueden eliminar calidades de una operación en tránsito o cancelada');
-      }
-    }
-    if (detalle?.es_reparto) {
-      const itemReparto = await this.prisma.items_reparto.findFirst({
-        where: { id_detalle_carga: calidadRel.id_detalle_carga },
+      if (!calidad) throw new NotFoundException('Calidad no encontrada.');
+      await this.editableDetalle(tx, Number(calidad.id_detalle_carga));
+      if (
+        await tx.items_reparto_detalle.count({
+          where: { id_detalle_carga_calidad: calidadId },
+        })
+      )
+        throw new BadRequestException(
+          'Quita primero el destino asignado a esta calidad para poder eliminarla.',
+        );
+      return tx.detalle_carga_calidades.delete({
+        where: { id_detalle_carga_calidad: calidadId },
       });
-      if (itemReparto) {
-        await this.prisma.items_reparto_detalle.deleteMany({
-          where: {
-            id_item_reparto: itemReparto.id_item_reparto,
-            id_detalle_carga_calidad: calidadId,
-          },
-        });
-      }
-    }
-
-    // Eliminar la calidad
-    return this.prisma.detalle_carga_calidades.delete({
-      where: { id_detalle_carga_calidad: calidadId },
     });
   }
 
@@ -441,20 +518,38 @@ export class DetalleCargaService {
     const { id_cliente_emisor, id_fruta, id_variedad, id_tipo_jaba } = dto;
 
     if (id_cliente_emisor) {
-      const exists = await this.prisma.clientes.findUnique({ where: { id_cliente: id_cliente_emisor } });
-      if (!exists) throw new BadRequestException(`Cliente con ID ${id_cliente_emisor} no existe`);
+      const exists = await this.prisma.clientes.findUnique({
+        where: { id_cliente: id_cliente_emisor },
+      });
+      if (!exists)
+        throw new BadRequestException(
+          `Cliente con ID ${id_cliente_emisor} no existe`,
+        );
     }
     if (id_fruta) {
-      const exists = await this.prisma.frutas.findUnique({ where: { id_fruta } });
-      if (!exists) throw new BadRequestException(`Fruta con ID ${id_fruta} no existe`);
+      const exists = await this.prisma.frutas.findUnique({
+        where: { id_fruta },
+      });
+      if (!exists)
+        throw new BadRequestException(`Fruta con ID ${id_fruta} no existe`);
     }
     if (id_variedad) {
-      const exists = await this.prisma.variedades.findUnique({ where: { id_variedad } });
-      if (!exists) throw new BadRequestException(`Variedad con ID ${id_variedad} no existe`);
+      const exists = await this.prisma.variedades.findUnique({
+        where: { id_variedad },
+      });
+      if (!exists)
+        throw new BadRequestException(
+          `Variedad con ID ${id_variedad} no existe`,
+        );
     }
     if (id_tipo_jaba) {
-      const exists = await this.prisma.tipos_jaba.findUnique({ where: { id_tipo_jaba } });
-      if (!exists) throw new BadRequestException(`Tipo de jaba con ID ${id_tipo_jaba} no existe`);
+      const exists = await this.prisma.tipos_jaba.findUnique({
+        where: { id_tipo_jaba },
+      });
+      if (!exists)
+        throw new BadRequestException(
+          `Tipo de jaba con ID ${id_tipo_jaba} no existe`,
+        );
     }
   }
 }

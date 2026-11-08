@@ -1,4 +1,14 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { validarEntrega } from './validar-entrega';
+import {
+  cargaEditable,
+  operacionCancelada,
+  resumenFlujo,
+} from '../operaciones-carga/flujo-operacion';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../config/prisma/prisma.service';
 import { CreateEntregaDto } from './dto/create-entregas.dto';
 import { UpdateEntregaDto } from './dto/update-entregas.dto';
@@ -13,7 +23,7 @@ interface EntregaCreateDto extends CreateEntregaDto {
 
 @Injectable()
 export class EntregasService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   // ==================== AUXILIAR ====================
   private parseHora(horaStr?: string): Date | null {
@@ -52,141 +62,177 @@ export class EntregasService {
   }
 
   // ==================== CRUD ====================
-  async create(createDto: EntregaCreateDto, empresaId: number = 1, usuarioId?: number) {
-    await this.validateRelations(createDto);
-    const horaDate = this.parseHora(createDto.hora_entrega);
-
-    const entrega = await this.prisma.$transaction(async (tx) => {
-      const entregaCreada = await tx.entregas.create({
+  async create(
+    createDto: EntregaCreateDto,
+    empresaId: number = 1,
+    usuarioId?: number,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const referencia = await tx.items_reparto.findUnique({
+        where: { id_item_reparto: createDto.id_item_reparto },
+        select: { detalle_carga: { select: { id_operacion: true } } },
+      });
+      if (!referencia)
+        throw new NotFoundException('Destino de entrega no encontrado.');
+      // Serializa el registro y evita duplicados por doble clic o solicitudes simultáneas.
+      await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${referencia.detalle_carga.id_operacion} FOR UPDATE`;
+      const item = await tx.items_reparto.findUnique({
+        where: { id_item_reparto: createDto.id_item_reparto },
+        include: {
+          entregas: true,
+          guias_operativas: true,
+          detalle_carga: {
+            include: { operaciones_carga: true, detalle_carga_calidades: true },
+          },
+        },
+      });
+      if (!item || Number(item.id_empresa) !== empresaId)
+        throw new NotFoundException('Destino de entrega no encontrado.');
+      const detalle = item.detalle_carga;
+      const operacion = detalle.operaciones_carga;
+      if (
+        cargaEditable(operacion.estado) ||
+        operacionCancelada(operacion.estado)
+      )
+        throw new BadRequestException(
+          'Primero completa la carga, sus calidades y destinos, y confirma la carga.',
+        );
+      const recibidas = item.entregas
+        .filter((e) => e.estado_entrega !== 'pendiente')
+        .reduce((sum, e) => sum + e.cantidad_entregada, 0);
+      validarEntrega(
+        createDto.cantidad_entregada,
+        createDto.cantidad_rechazada ?? 0,
+        createDto.estado_entrega,
+        item.cantidad_asignada - recibidas,
+        createDto.nombre_recibe,
+      );
+      if (
+        createDto.estado_entrega === 'pendiente' &&
+        item.entregas.some((e) => e.estado_entrega === 'pendiente')
+      )
+        throw new BadRequestException(
+          'Ya existe un registro pendiente para este destino.',
+        );
+      const hora = this.parseHora(createDto.hora_entrega);
+      if (createDto.hora_entrega && !hora)
+        throw new BadRequestException('La hora de entrega no es válida.');
+      const fecha = new Date(createDto.fecha_entrega);
+      if (Number.isNaN(fecha.getTime()) || fecha < operacion.fecha_carga)
+        throw new BadRequestException(
+          'La fecha de entrega no puede ser anterior a la carga.',
+        );
+      if (createDto.id_entregador) {
+        const usuario = await tx.usuarios.findFirst({
+          where: {
+            id_usuario: createDto.id_entregador,
+            id_empresa: item.id_empresa,
+          },
+        });
+        if (!usuario)
+          throw new BadRequestException(
+            'El entregador no pertenece a esta empresa.',
+          );
+      }
+      let guia = createDto.id_guia
+        ? item.guias_operativas.find(
+            (g) => Number(g.id_guia) === createDto.id_guia,
+          )
+        : item.guias_operativas.find(
+            (g) => g.estado !== 'anulada' && g.estado !== 'reemplazada',
+          );
+      if (createDto.id_guia && !guia)
+        throw new BadRequestException(
+          'La guía no corresponde a este destino de entrega.',
+        );
+      if (guia && (guia.estado === 'anulada' || guia.estado === 'reemplazada'))
+        throw new BadRequestException('La guía está anulada o reemplazada.');
+      if (!guia)
+        guia = await tx.guias_operativas.create({
+          data: {
+            id_empresa: item.id_empresa,
+            id_item_reparto: item.id_item_reparto,
+            id_puesto: item.id_puesto,
+            numero_guia:
+              'G-' +
+              operacion.id_operacion +
+              '-I' +
+              item.id_item_reparto +
+              '-V' +
+              (item.guias_operativas.length + 1),
+            fecha_emision: fecha,
+            id_repartidor: operacion.id_repartidor_asignado,
+            estado: 'emitida',
+          },
+        });
+      const entrega = await tx.entregas.create({
         data: {
-          id_empresa: 1,
-          id_guia: createDto.id_guia,
-          id_item_reparto: createDto.id_item_reparto,
+          id_empresa: item.id_empresa,
+          id_guia: guia.id_guia,
+          id_item_reparto: item.id_item_reparto,
           id_entregador: createDto.id_entregador,
-          fecha_entrega: new Date(createDto.fecha_entrega),
-          hora_entrega: horaDate,
+          fecha_entrega: fecha,
+          hora_entrega: hora,
           cantidad_entregada: createDto.cantidad_entregada,
           cantidad_rechazada: createDto.cantidad_rechazada ?? 0,
           estado_entrega: createDto.estado_entrega,
           firma_recibido: createDto.firma_recibido ?? false,
-          nombre_recibe: createDto.nombre_recibe,
+          nombre_recibe: createDto.nombre_recibe?.trim() || null,
           observaciones: createDto.observaciones,
         },
-        include: {
-          guias_operativas: {
-            include: {
-              items_reparto: {
-                include: {
-                  detalle_carga: {
-                    select: { id_operacion: true, id_cliente_emisor: true, id_tipo_jaba: true, cantidad_jabas: true, requiere_retorno_jabas: true }
-                  }
-                }
-              }
-            }
-          }
-        }
       });
-
-      const detalle = entregaCreada.guias_operativas?.items_reparto?.detalle_carga;
-      const requiereRetorno = Boolean(createDto.requiere_retorno_jabas ?? detalle?.requiere_retorno_jabas);
-
-      if (requiereRetorno) {
-        const cantidadJabas = createDto.cantidad_jabas ?? detalle?.cantidad_jabas ?? 0;
-        const idClienteEmisor = createDto.id_cliente_emisor ?? detalle?.id_cliente_emisor;
-        const idTipoJaba = createDto.id_tipo_jaba ?? detalle?.id_tipo_jaba;
-
-        if (cantidadJabas > 0 && idClienteEmisor && idTipoJaba) {
-          const jabaPagar = await tx.jabas_por_pagar.create({
-            data: {
-              id_empresa: 1,
-              id_entrega: entregaCreada.id_entrega,
-              id_cliente_emisor: idClienteEmisor,
-              id_tipo_jaba: idTipoJaba,
-              fecha_origen: new Date(createDto.fecha_entrega),
-              cantidad_original: cantidadJabas,
-              cantidad_pagada: 0,
-              saldo_pendiente: cantidadJabas,
-              estado: 'pendiente',
-              observaciones: 'Generado automáticamente al crear la entrega',
-            },
-          });
-
-          const jabaCobrar = await tx.jabas_por_cobrar.create({
-            data: {
-              id_empresa: 1,
-              id_entrega: entregaCreada.id_entrega,
-              id_tipo_jaba: idTipoJaba,
-              fecha_origen: new Date(createDto.fecha_entrega),
-              cantidad_original: cantidadJabas,
-              cantidad_recuperada: 0,
-              saldo_pendiente: cantidadJabas,
-              estado: 'pendiente',
-              observaciones: 'Generado automáticamente al crear la entrega',
-            },
-          });
-
-          await this.registrarLog(
-            tx,
-            'entrega_con_retorno_creada',
-            'entregas',
-            entregaCreada.id_entrega,
-            null,
-            {
-              entrega: entregaCreada.id_entrega,
-              jaba_por_pagar: jabaPagar.id_jaba_pagar,
-              jaba_por_cobrar: jabaCobrar.id_jaba_cobrar,
-              cantidad_original: cantidadJabas,
-            },
-            empresaId,
-            usuarioId,
-          );
-        }
+      // La deuda corresponde a lo recibido en esta entrega, no al total de la carga.
+      if (detalle.requiere_retorno_jabas && createDto.cantidad_entregada > 0) {
+        const cantidad = createDto.cantidad_entregada;
+        await tx.jabas_por_cobrar.create({
+          data: {
+            id_empresa: item.id_empresa,
+            id_entrega: entrega.id_entrega,
+            id_tipo_jaba: detalle.id_tipo_jaba,
+            fecha_origen: fecha,
+            cantidad_original: cantidad,
+            cantidad_recuperada: 0,
+            saldo_pendiente: cantidad,
+            estado: 'pendiente',
+            observaciones: 'Generado al registrar la entrega',
+          },
+        });
       }
-
       await this.registrarLog(
         tx,
         'entrega_creada',
         'entregas',
-        entregaCreada.id_entrega,
+        entrega.id_entrega,
         null,
         {
-          entrega: entregaCreada.id_entrega,
-          requiere_retorno_jabas: requiereRetorno,
+          entrega: String(entrega.id_entrega),
+          cantidad: createDto.cantidad_entregada,
         },
         empresaId,
         usuarioId,
       );
-
-      return entregaCreada;
-    });
-
-    const operacionId = entrega.guias_operativas?.items_reparto?.detalle_carga?.id_operacion;
-
-    if (operacionId) {
-      // Verificar si todas las guías de la operación están firmadas
-      const guiasOperacion = await this.prisma.guias_operativas.findMany({
-        where: {
-          items_reparto: {
-            detalle_carga: { id_operacion: operacionId }
-          }
+      const detalles = await tx.detalle_carga.findMany({
+        where: { id_operacion: operacion.id_operacion },
+        include: {
+          detalle_carga_calidades: true,
+          items_reparto: { include: { entregas: true } },
         },
-        select: { estado: true }
       });
-
-      const todasFirmadas = guiasOperacion.length > 0 && guiasOperacion.every(g => g.estado === 'firmada');
-      if (todasFirmadas) {
-        await this.prisma.operaciones_carga.update({
-          where: { id_operacion: operacionId },
-          data: { estado: 'completado' }
+      if (resumenFlujo(detalles).entregasCompletas)
+        await tx.operaciones_carga.update({
+          where: { id_operacion: operacion.id_operacion },
+          data: { estado: 'completado' },
         });
-      }
-    }
-
-    return entrega;
+      return entrega;
+    });
   }
 
   async findAll(query: QueryEntregasDto) {
     const where: any = {};
+    if (query.id_operacion)
+      where.items_reparto = {
+        detalle_carga: { id_operacion: query.id_operacion },
+      };
     if (query.id_guia) where.id_guia = query.id_guia;
     if (query.id_item_reparto) where.id_item_reparto = query.id_item_reparto;
     if (query.estado_entrega) where.estado_entrega = query.estado_entrega;
@@ -222,42 +268,59 @@ export class EntregasService {
   }
 
   async update(id: number, updateDto: UpdateEntregaDto) {
-    await this.findOne(id);
-    if (Object.keys(updateDto).length === 0)
-      throw new BadRequestException('No se enviaron datos para actualizar');
-    await this.validateRelations(updateDto);
-    const data: any = { ...updateDto };
-    if (updateDto.fecha_entrega) data.fecha_entrega = new Date(updateDto.fecha_entrega);
-    if (updateDto.hora_entrega) {
-      data.hora_entrega = this.parseHora(updateDto.hora_entrega);
+    const entrega = await this.findOne(id);
+    const protectedFields = [
+      'id_guia',
+      'id_item_reparto',
+      'cantidad_entregada',
+      'cantidad_rechazada',
+      'estado_entrega',
+    ] as const;
+    for (const field of protectedFields) {
+      if (
+        updateDto[field] !== undefined &&
+        String(updateDto[field]) !== String(entrega[field])
+      )
+        throw new BadRequestException(
+          'Las cantidades y el destino ya están registrados. Registra una entrega adicional para el saldo pendiente.',
+        );
     }
+    if (
+      updateDto.nombre_recibe !== undefined &&
+      entrega.cantidad_entregada > 0 &&
+      !updateDto.nombre_recibe?.trim()
+    )
+      throw new BadRequestException('Escribe el nombre de quien recibe.');
     return this.prisma.entregas.update({
       where: { id_entrega: id },
-      data,
+      data: {
+        nombre_recibe: updateDto.nombre_recibe?.trim(),
+        observaciones: updateDto.observaciones,
+        firma_recibido: updateDto.firma_recibido,
+      },
       include: { guias_operativas: true, items_reparto: true },
     });
   }
 
   async changeState(id: number, newState: string) {
-    const allowed = ['pendiente', 'entregado_parcial', 'entregado_total', 'rechazado', 'observado'];
-    if (!allowed.includes(newState))
-      throw new BadRequestException(`Estado de entrega no válido: ${newState}`);
-    await this.findOne(id);
-    return this.prisma.entregas.update({
-      where: { id_entrega: id },
-      data: { estado_entrega: newState },
-    });
+    const entrega = await this.findOne(id);
+    if (entrega.estado_entrega !== newState)
+      throw new BadRequestException(
+        'El estado depende de las cantidades registradas. Registra una nueva entrega para el saldo pendiente.',
+      );
+    return entrega;
   }
 
   async sign(id: number, nombre_recibe?: string) {
-    await this.findOne(id);
+    const entrega = await this.findOne(id);
+    const nombre = nombre_recibe?.trim() || entrega.nombre_recibe?.trim();
+    if (!nombre)
+      throw new BadRequestException('Escribe el nombre de quien recibe.');
+    if (entrega.cantidad_entregada <= 0)
+      throw new BadRequestException('Primero registra las jabas recibidas.');
     return this.prisma.entregas.update({
       where: { id_entrega: id },
-      data: {
-        firma_recibido: true,
-        nombre_recibe: nombre_recibe ?? null,
-        estado_entrega: 'entregado_total',
-      },
+      data: { firma_recibido: true, nombre_recibe: nombre },
     });
   }
 
@@ -277,7 +340,8 @@ export class EntregasService {
     const item = await this.prisma.items_reparto.findUnique({
       where: { id_item_reparto: itemRepartoId },
     });
-    if (!item) throw new NotFoundException(`Item reparto ID ${itemRepartoId} no existe`);
+    if (!item)
+      throw new NotFoundException(`Item reparto ID ${itemRepartoId} no existe`);
     return this.prisma.entregas.findMany({
       where: { id_item_reparto: itemRepartoId },
       include: { guias_operativas: true, usuarios: true },
@@ -289,19 +353,26 @@ export class EntregasService {
       const exists = await this.prisma.guias_operativas.findUnique({
         where: { id_guia: dto.id_guia },
       });
-      if (!exists) throw new BadRequestException(`Guía ID ${dto.id_guia} no existe`);
+      if (!exists)
+        throw new BadRequestException(`Guía ID ${dto.id_guia} no existe`);
     }
     if (dto.id_item_reparto) {
       const exists = await this.prisma.items_reparto.findUnique({
         where: { id_item_reparto: dto.id_item_reparto },
       });
-      if (!exists) throw new BadRequestException(`Item reparto ID ${dto.id_item_reparto} no existe`);
+      if (!exists)
+        throw new BadRequestException(
+          `Item reparto ID ${dto.id_item_reparto} no existe`,
+        );
     }
     if (dto.id_entregador) {
       const exists = await this.prisma.usuarios.findUnique({
         where: { id_usuario: dto.id_entregador },
       });
-      if (!exists) throw new BadRequestException(`Entregador ID ${dto.id_entregador} no existe`);
+      if (!exists)
+        throw new BadRequestException(
+          `Entregador ID ${dto.id_entregador} no existe`,
+        );
     }
   }
 }

@@ -10,6 +10,9 @@ export class GuiasOperativasService {
   constructor(private prisma: PrismaService) { }
 
   async create(createDto: CreateGuiaOperativaDto) {
+    const destino = await this.prisma.items_reparto.findUnique({where: {id_item_reparto: createDto.id_item_reparto}, include: {entregas: true, guias_operativas: true}});
+    if (!destino || !destino.entregas.some(e => e.estado_entrega !== 'pendiente')) throw new BadRequestException('Registra primero la entrega desde su operación. La guía se genera automáticamente.');
+    if (destino.guias_operativas.some(g => g.estado !== 'anulada' && g.estado !== 'reemplazada')) throw new BadRequestException('Este destino ya tiene una guía vigente.');
     await this.validateRelations(createDto);
     const existing = await this.prisma.guias_operativas.findFirst({
       where: { id_empresa: 1, numero_guia: createDto.numero_guia },
@@ -25,6 +28,7 @@ export class GuiasOperativasService {
         estado: createDto.estado ?? 'emitida',
         observaciones: createDto.observaciones,
         id_item_reparto: createDto.id_item_reparto,
+        id_puesto: destino.id_puesto,
       },
       include: { usuarios: true, items_reparto: true },
     });
@@ -90,67 +94,12 @@ export class GuiasOperativasService {
 
     if (!guia) throw new NotFoundException(`Guía ${id} no encontrada`);
 
-    const primerItem = guia.items_reparto;
-    if (primerItem?.detalle_carga?.id_operacion && primerItem?.id_puesto) {
-      const operacionId = primerItem.detalle_carga.id_operacion;
-      const puestoId = primerItem.id_puesto;
-
-      // Obtener TODOS los items del mismo puesto y operación
-      const itemsDelPuesto = await this.prisma.items_reparto.findMany({
-        where: {
-          id_puesto: puestoId,
-          detalle_carga: {
-            id_operacion: operacionId,
-          },
-        },
-        include: {
-          clientes: true,
-          puestos: true,
-          items_reparto_detalle: {
-            include: {
-              detalle_carga_calidades: {
-                include: { calidades: true },
-              },
-            },
-          },
-        },
-      });
-
-      // Combinar todas las calidades de todos los items del puesto
-      const todasLasCalidades = itemsDelPuesto.flatMap(item => item.items_reparto_detalle || []);
-
-      // Calcular total asignado (suma de cantidades de todos los items)
-      const totalAsignado = itemsDelPuesto.reduce((sum, item) => sum + item.cantidad_asignada, 0);
-
-      // Clientes únicos del puesto
-      const clientesUnicos = [...new Set(
-        itemsDelPuesto.map(item => item.clientes?.nombres).filter(Boolean)
-      )];
-      const totalGeneral = todasLasCalidades.reduce((sum, det) => {
-        const cantidad = Number(det.cantidad);
-        const precio = Number(det.precio_unitario || 0);
-        return sum + (precio * cantidad);
-      }, 0);
-      // 🔹 Agregamos propiedades virtuales sin sobrescribir el objeto original
-      return {
-        ...guia,
-        items_reparto: {
-          ...guia.items_reparto,
-          _todas_las_calidades: todasLasCalidades,
-          _total_asignado_agrupado: totalAsignado,
-          _clientes_agrupados: clientesUnicos,
-          _items_del_puesto: itemsDelPuesto,
-          _total_general: totalGeneral, // ✅ NUEVO campo
-          _cantidad_total_items: todasLasCalidades.reduce((sum, det) => sum + det.cantidad, 0), // ✅ opcional
-        },
-      };
-    }
-
     return guia;
   }
 
   async update(id: number, updateDto: UpdateGuiaOperativaDto) {
-    await this.findOne(id);
+    const actual = await this.findOne(id);
+    if (updateDto.id_item_reparto !== undefined && BigInt(updateDto.id_item_reparto) !== actual.id_item_reparto) throw new BadRequestException('No se puede mover una guía a otra entrega.');
     if (Object.keys(updateDto).length === 0)
       throw new BadRequestException('No se enviaron datos para actualizar');
     await this.validateRelations(updateDto);
@@ -172,7 +121,8 @@ export class GuiasOperativasService {
   }
 
   async sign(id: number) {
-    await this.findOne(id);
+    const guia = await this.findOne(id);
+    if (guia.estado === 'anulada' || guia.estado === 'reemplazada' || !guia.entregas.some(e => e.cantidad_entregada > 0)) throw new BadRequestException('Registra una entrega válida antes de firmar la guía.');
     return this.prisma.guias_operativas.update({
       where: { id_guia: id },
       data: { estado: 'firmada' },
@@ -180,6 +130,7 @@ export class GuiasOperativasService {
   }
 
   async changeState(id: number, newState: string) {
+    if (newState === 'firmada') return this.sign(id);
     const allowed = ['emitida', 'firmada', 'anulada', 'reemplazada', 'observada'];
     if (!allowed.includes(newState))
       throw new BadRequestException(`Estado no válido: ${newState}`);

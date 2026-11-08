@@ -41,7 +41,7 @@ export class CreateOperacionCargaDto {
 
     @IsOptional()
     @IsString()
-    @IsIn(['pendiente', 'en_proceso', 'completada', 'cancelada'])
+    @IsIn(['pendiente', 'en_curso', 'en_transito', 'repartiendo', 'completado', 'cancelado'])
     estado?: string;
 
     @IsOptional()

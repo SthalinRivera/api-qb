@@ -3,7 +3,8 @@ import { IsInt, IsOptional, IsString, IsDateString, Min, Max, IsBoolean } from '
 export class CreateEntregaDto {
   @IsInt()
   @Min(1)
-  id_guia!: number;
+  @IsOptional()
+  id_guia?: number;
 
   @IsInt()
   @Min(1)
