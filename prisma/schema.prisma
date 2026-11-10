@@ -37,17 +37,19 @@ model camiones {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model cliente_sede {
-  id_cliente_sede BigInt    @id @default(autoincrement())
+  id_cliente_sede BigInt     @id @default(autoincrement())
   id_empresa      BigInt
   id_cliente      BigInt
   id_sede         BigInt
   observaciones   String?
-  estado          Boolean?  @default(true)
-  created_at      DateTime? @default(now()) @db.Timestamptz(6)
+  estado          Boolean?   @default(true)
+  created_at      DateTime?  @default(now()) @db.Timestamptz(6)
   tipo_relacion   String
-  clientes        clientes  @relation(fields: [id_cliente], references: [id_cliente], onDelete: Cascade, onUpdate: NoAction)
-  empresas        empresas  @relation(fields: [id_empresa], references: [id_empresa], onDelete: Cascade, onUpdate: NoAction)
-  sedes           sedes     @relation(fields: [id_sede], references: [id_sede], onDelete: Cascade, onUpdate: NoAction)
+  id_ubigeo       String?
+  clientes        clientes   @relation(fields: [id_cliente], references: [id_cliente], onDelete: Cascade, onUpdate: NoAction)
+  empresas        empresas   @relation(fields: [id_empresa], references: [id_empresa], onDelete: Cascade, onUpdate: NoAction)
+  sedes           sedes      @relation(fields: [id_sede], references: [id_sede], onDelete: Cascade, onUpdate: NoAction)
+  distritos       distritos? @relation(fields: [id_ubigeo], references: [id_ubigeo], onDelete: NoAction, onUpdate: NoAction)
 
   @@unique([id_cliente, id_sede, tipo_relacion], map: "uq_cliente_sede")
   @@index([id_cliente], map: "idx_cliente_sede_cliente")
@@ -187,6 +189,7 @@ model empresas {
   detalle_carga             detalle_carga[]
   detalle_carga_calidades   detalle_carga_calidades[]
   devoluciones_jabas_emisor devoluciones_jabas_emisor[]
+  empresa_lugares           empresa_lugares[]
   entregas                  entregas[]
   evidencias                evidencias[]
   frutas                    frutas[]
@@ -414,17 +417,20 @@ model logs_actividad {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model lugares_operativos {
-  id_lugar             BigInt    @id @default(autoincrement())
+  id_lugar             BigInt            @id @default(autoincrement())
   id_empresa           BigInt
   id_sede              BigInt
   nombre               String
   direccion_referencia String?
   observaciones        String?
-  estado               Boolean?  @default(true)
-  created_at           DateTime? @default(now()) @db.Timestamptz(6)
-  tipo_lugar           String    @default("mercado")
-  empresas             empresas  @relation(fields: [id_empresa], references: [id_empresa], onDelete: Cascade, onUpdate: NoAction)
-  sedes                sedes     @relation(fields: [id_sede], references: [id_sede], onDelete: Cascade, onUpdate: NoAction)
+  estado               Boolean?          @default(true)
+  created_at           DateTime?         @default(now()) @db.Timestamptz(6)
+  tipo_lugar           String            @default("mercado")
+  id_ubigeo            String?
+  empresa_lugares      empresa_lugares[]
+  empresas             empresas          @relation(fields: [id_empresa], references: [id_empresa], onDelete: Cascade, onUpdate: NoAction)
+  sedes                sedes             @relation(fields: [id_sede], references: [id_sede], onDelete: Cascade, onUpdate: NoAction)
+  distritos            distritos?        @relation(fields: [id_ubigeo], references: [id_ubigeo], onDelete: NoAction, onUpdate: NoAction)
   puestos              puestos[]
 
   @@unique([id_sede, nombre], map: "uq_lugar_operativo_sede")
@@ -446,6 +452,8 @@ model operaciones_carga {
   estado                                                      String?         @default("pendiente")
   observaciones                                               String?
   created_at                                                  DateTime?       @default(now()) @db.Timestamptz(6)
+  id_ubigeo_origen                                            String?
+  id_ubigeo_destino                                           String?
   detalle_carga                                               detalle_carga[]
   incidencias                                                 incidencias[]
   camiones                                                    camiones        @relation(fields: [id_camion], references: [id_camion], onDelete: NoAction, onUpdate: NoAction)
@@ -454,6 +462,8 @@ model operaciones_carga {
   usuarios_operaciones_carga_id_repartidor_asignadoTousuarios usuarios?       @relation("operaciones_carga_id_repartidor_asignadoTousuarios", fields: [id_repartidor_asignado], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
   sedes_operaciones_carga_id_sede_destinoTosedes              sedes?          @relation("operaciones_carga_id_sede_destinoTosedes", fields: [id_sede_destino], references: [id_sede], onDelete: NoAction, onUpdate: NoAction)
   sedes_operaciones_carga_id_sede_origenTosedes               sedes           @relation("operaciones_carga_id_sede_origenTosedes", fields: [id_sede_origen], references: [id_sede], onDelete: NoAction, onUpdate: NoAction)
+  distritos_operaciones_carga_id_ubigeo_destinoTodistritos    distritos?      @relation("operaciones_carga_id_ubigeo_destinoTodistritos", fields: [id_ubigeo_destino], references: [id_ubigeo], onDelete: NoAction, onUpdate: NoAction)
+  distritos_operaciones_carga_id_ubigeo_origenTodistritos     distritos?      @relation("operaciones_carga_id_ubigeo_origenTodistritos", fields: [id_ubigeo_origen], references: [id_ubigeo], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([id_camion], map: "idx_operaciones_carga_camion")
   @@index([id_empresa, fecha_carga], map: "idx_operaciones_empresa_fecha")
@@ -514,20 +524,21 @@ model roles_usuarios {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model sedes {
-  id_sede                                                    BigInt               @id @default(autoincrement())
+  id_sede                                                    BigInt                  @id @default(autoincrement())
   id_empresa                                                 BigInt
   nombre                                                     String
   tipo_sede                                                  String?
   direccion                                                  String?
   ciudad                                                     String?
   departamento                                               String?
-  estado                                                     Boolean?             @default(true)
-  created_at                                                 DateTime?            @default(now()) @db.Timestamptz(6)
+  estado                                                     Boolean?                @default(true)
+  created_at                                                 DateTime?               @default(now()) @db.Timestamptz(6)
   cliente_sede                                               cliente_sede[]
   lugares_operativos                                         lugares_operativos[]
-  operaciones_carga_operaciones_carga_id_sede_destinoTosedes operaciones_carga[]  @relation("operaciones_carga_id_sede_destinoTosedes")
-  operaciones_carga_operaciones_carga_id_sede_origenTosedes  operaciones_carga[]  @relation("operaciones_carga_id_sede_origenTosedes")
-  empresas                                                   empresas             @relation(fields: [id_empresa], references: [id_empresa], onDelete: Cascade, onUpdate: NoAction)
+  migracion_sedes_ubigeo                                     migracion_sedes_ubigeo?
+  operaciones_carga_operaciones_carga_id_sede_destinoTosedes operaciones_carga[]     @relation("operaciones_carga_id_sede_destinoTosedes")
+  operaciones_carga_operaciones_carga_id_sede_origenTosedes  operaciones_carga[]     @relation("operaciones_carga_id_sede_origenTosedes")
+  empresas                                                   empresas                @relation(fields: [id_empresa], references: [id_empresa], onDelete: Cascade, onUpdate: NoAction)
   usuarios                                                   usuarios[]
 
   @@unique([id_empresa, nombre], map: "uq_sede_empresa")
@@ -566,6 +577,7 @@ model usuarios {
   avatar_url                                                           String?
   estado                                                               Boolean?                    @default(true)
   created_at                                                           DateTime?                   @default(now()) @db.Timestamptz(6)
+  id_ubigeo                                                            String?
   devoluciones_jabas_emisor                                            devoluciones_jabas_emisor[]
   entregas                                                             entregas[]
   evidencias                                                           evidencias[]
@@ -578,6 +590,7 @@ model usuarios {
   roles_modulos                                                        roles_modulos[]
   empresas                                                             empresas                    @relation(fields: [id_empresa], references: [id_empresa], onDelete: Cascade, onUpdate: NoAction)
   sedes                                                                sedes                       @relation(fields: [id_sede], references: [id_sede], onDelete: SetNull, onUpdate: NoAction)
+  distritos                                                            distritos?                  @relation(fields: [id_ubigeo], references: [id_ubigeo], onDelete: NoAction, onUpdate: NoAction)
   usuarios_roles                                                       usuarios_roles[]
 
   @@unique([id_empresa, email], map: "uq_usuario_empresa_email")
@@ -675,4 +688,76 @@ model roles_modulos {
   @@index([fecha_asignacion], map: "idx_roles_modulos_fecha")
   @@index([modulo_id], map: "idx_roles_modulos_modulo")
   @@index([rol_id], map: "idx_roles_modulos_rol")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model departamentos {
+  id_departamento String       @id
+  nombre          String
+  provincias      provincias[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model distritos {
+  id_ubigeo                                                        String                   @id
+  id_provincia                                                     String
+  nombre                                                           String
+  cliente_sede                                                     cliente_sede[]
+  provincias                                                       provincias               @relation(fields: [id_provincia], references: [id_provincia], onDelete: NoAction, onUpdate: NoAction)
+  lugares_operativos                                               lugares_operativos[]
+  migracion_sedes_ubigeo                                           migracion_sedes_ubigeo[]
+  operaciones_carga_operaciones_carga_id_ubigeo_destinoTodistritos operaciones_carga[]      @relation("operaciones_carga_id_ubigeo_destinoTodistritos")
+  operaciones_carga_operaciones_carga_id_ubigeo_origenTodistritos  operaciones_carga[]      @relation("operaciones_carga_id_ubigeo_origenTodistritos")
+  usuarios                                                         usuarios[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model empresa_lugares {
+  id_empresa_lugar   BigInt             @id @default(autoincrement())
+  id_empresa         BigInt
+  id_lugar           BigInt
+  estado             Boolean            @default(true)
+  created_at         DateTime           @default(now()) @db.Timestamptz(6)
+  empresas           empresas           @relation(fields: [id_empresa], references: [id_empresa], onDelete: NoAction, onUpdate: NoAction)
+  lugares_operativos lugares_operativos @relation(fields: [id_lugar], references: [id_lugar], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([id_empresa, id_lugar], map: "empresa_lugares_empresa_lugar_key")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model migracion_sedes_ubigeo {
+  id_sede   BigInt    @id
+  id_ubigeo String
+  sedes     sedes     @relation(fields: [id_sede], references: [id_sede], onDelete: NoAction, onUpdate: NoAction)
+  distritos distritos @relation(fields: [id_ubigeo], references: [id_ubigeo], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model provincias {
+  id_provincia    String        @id
+  id_departamento String
+  nombre          String
+  distritos       distritos[]
+  departamentos   departamentos @relation(fields: [id_departamento], references: [id_departamento], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model ubigeo_importacion {
+  ubigeo                   String?
+  nivel                    String?
+  nombre                   String?
+  nombre_normalizado       String?
+  nombre_censo             String?
+  nombre_censo_normalizado String?
+  clave_censo              String?
+  ubigeo_departamento      String?
+  nombre_departamento      String?
+  ubigeo_provincia         String?
+  nombre_provincia         String?
+
+  @@ignore
 }
