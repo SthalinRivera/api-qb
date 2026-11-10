@@ -33,7 +33,7 @@ export class IncidenciasService {
       throw new BadRequestException('idUsuario es  requerido');
     }
     // 1. Obtener usuario
-    const usuario = await this.prisma.usuarios.findUnique({
+    const usuario = await this.prisma.scoped.usuarios.findUnique({
       where: { id_usuario: BigInt(idUsuario) },
       select: { id_empresa: true },
     });
@@ -94,7 +94,7 @@ export class IncidenciasService {
     // 6. Crear la incidencia
     let incidencia;
     try {
-      incidencia = await this.prisma.incidencias.create({
+      incidencia = await this.prisma.scoped.incidencias.create({
         data: dataConEmpresa,
       });
       console.log(`✅ Incidencia creada con ID: ${incidencia.id_incidencia}`);
@@ -113,7 +113,7 @@ export class IncidenciasService {
         console.log('📋 URLs:', urls);
 
         for (const url of urls) {
-          const evidencia = await this.prisma.evidencias.create({
+          const evidencia = await this.prisma.scoped.evidencias.create({
             data: {
               id_empresa: incidencia.id_empresa,
               tipo_entidad: 'incidencia',
@@ -162,7 +162,7 @@ export class IncidenciasService {
       }
     }
 
-    const incidencias = await this.prisma.incidencias.findMany({
+    const incidencias = await this.prisma.scoped.incidencias.findMany({
       where,
       include: {
         empresas: true,
@@ -172,7 +172,7 @@ export class IncidenciasService {
     });
 
     const ids = incidencias.map(i => i.id_incidencia);
-    const evidencias = await this.prisma.evidencias.findMany({
+    const evidencias = await this.prisma.scoped.evidencias.findMany({
       where: {
         tipo_entidad: 'incidencia',
         id_entidad: { in: ids },
@@ -203,7 +203,7 @@ export class IncidenciasService {
   // ============================================================
   async findOne(id: number) {
     console.log(`🔍 Buscando incidencia con ID: ${id}`);
-    const incidencia = await this.prisma.incidencias.findUnique({
+    const incidencia = await this.prisma.scoped.incidencias.findUnique({
       where: { id_incidencia: BigInt(id) },
       include: {
         empresas: true,
@@ -216,7 +216,7 @@ export class IncidenciasService {
 
     if (!incidencia) return null;
 
-    const evidencias = await this.prisma.evidencias.findMany({
+    const evidencias = await this.prisma.scoped.evidencias.findMany({
       where: {
         tipo_entidad: 'incidencia',
         id_entidad: incidencia.id_incidencia,
@@ -234,7 +234,7 @@ export class IncidenciasService {
   // ============================================================
   async update(id: number, updateIncidenciaDto: UpdateIncidenciaDto) {
     console.log(`🔄 Actualizando incidencia ID: ${id}`);
-    return this.prisma.incidencias.update({
+    return this.prisma.scoped.incidencias.update({
       where: { id_incidencia: BigInt(id) },
       data: updateIncidenciaDto,
     });
@@ -245,13 +245,13 @@ export class IncidenciasService {
   // ============================================================
   async remove(id: number) {
     console.log(`🗑️ Eliminando incidencia ID: ${id}`);
-    await this.prisma.evidencias.deleteMany({
+    await this.prisma.scoped.evidencias.deleteMany({
       where: {
         tipo_entidad: 'incidencia',
         id_entidad: BigInt(id),
       },
     });
-    return this.prisma.incidencias.delete({
+    return this.prisma.scoped.incidencias.delete({
       where: { id_incidencia: BigInt(id) },
     });
   }

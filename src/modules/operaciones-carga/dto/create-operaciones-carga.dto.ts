@@ -5,10 +5,20 @@ import {
     IsDateString,
     IsIn,
     Min,
+    Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateOperacionCargaDto {
+    @IsOptional()
+    @IsString()
+    @Matches(/^\d{6}$/)
+    id_ubigeo_origen?: string;
+    @IsOptional()
+    @IsString()
+    @Matches(/^\d{6}$/)
+    id_ubigeo_destino?: string;
+
     @IsInt()
     @Min(1)
     id_sede_origen!: number;
@@ -41,7 +51,7 @@ export class CreateOperacionCargaDto {
 
     @IsOptional()
     @IsString()
-    @IsIn(['pendiente', 'en_curso', 'en_transito', 'repartiendo', 'completado', 'cancelado'])
+    @IsIn(['pendiente', 'en_curso', 'en_transito', 'repartiendo', 'completado'])
     estado?: string;
 
     @IsOptional()

@@ -8,12 +8,12 @@ export class CalidadesService {
   constructor(private readonly prisma: PrismaService) { }
 
   async create(createCalidadDto: CreateCalidadDto) {
-    const empresa = await this.prisma.empresas.findUnique({
+    const empresa = await this.prisma.scoped.empresas.findUnique({
       where: { id_empresa: BigInt(createCalidadDto.id_empresa) },
     });
     if (!empresa) throw new NotFoundException('Empresa no encontrada');
 
-    return this.prisma.calidades.create({
+    return this.prisma.scoped.calidades.create({
       data: {
         id_empresa: BigInt(createCalidadDto.id_empresa),
         nombre: createCalidadDto.nombre,
@@ -29,7 +29,7 @@ export class CalidadesService {
       id_empresa: BigInt(empresaId),
     };
     if (estado !== undefined) where.estado = estado;
-    return this.prisma.calidades.findMany({
+    return this.prisma.scoped.calidades.findMany({
       where,
       include: { empresas: true },
       orderBy: { nombre: 'asc' },
@@ -40,7 +40,7 @@ export class CalidadesService {
     const where: any = { id_calidad: BigInt(id) };
     if (empresaId) where.id_empresa = BigInt(empresaId);
 
-    const calidad = await this.prisma.calidades.findFirst({
+    const calidad = await this.prisma.scoped.calidades.findFirst({
       where,
       include: { empresas: true },
     });
@@ -50,7 +50,7 @@ export class CalidadesService {
 
   async update(id: number, updateCalidadDto: UpdateCalidadDto) {
     // Verificar que la calidad pertenece a la empresa
-    const existing = await this.prisma.calidades.findUnique({
+    const existing = await this.prisma.scoped.calidades.findUnique({
       where: { id_calidad: BigInt(id) },
     });
     if (!existing) throw new NotFoundException(`Calidad con ID ${id} no encontrada`);
@@ -60,7 +60,7 @@ export class CalidadesService {
     }
 
     try {
-      const updated = await this.prisma.calidades.update({
+      const updated = await this.prisma.scoped.calidades.update({
         where: { id_calidad: BigInt(id) },
         data: {
           nombre: updateCalidadDto.nombre,
@@ -79,7 +79,7 @@ export class CalidadesService {
   async changeState(id: number, estado: boolean, empresaId?: number) {
     // Verificar que la calidad pertenece a la empresa
     if (empresaId) {
-      const existing = await this.prisma.calidades.findFirst({
+      const existing = await this.prisma.scoped.calidades.findFirst({
         where: { id_calidad: BigInt(id), id_empresa: BigInt(empresaId) },
       });
       if (!existing) throw new NotFoundException(`Calidad con ID ${id} no encontrada`);

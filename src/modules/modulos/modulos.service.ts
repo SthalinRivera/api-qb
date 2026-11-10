@@ -8,7 +8,7 @@ export class ModulosService {
     constructor(private readonly prisma: PrismaService) {}
 
     async create(dto: CreateModuloDto) {
-        return this.prisma.modulos.create({
+        return this.prisma.scoped.modulos.create({
             data: {
                 nombre: dto.nombre,
                 ruta: dto.ruta,
@@ -23,7 +23,7 @@ export class ModulosService {
     async findAll(estado?: boolean) {
         const where: any = {};
         if (estado !== undefined) where.estado = estado;
-        return this.prisma.modulos.findMany({
+        return this.prisma.scoped.modulos.findMany({
             where,
             orderBy: [{ id_categoria: 'asc' }, { orden: 'asc' }],
             include: { categorias: true },
@@ -31,14 +31,14 @@ export class ModulosService {
     }
 
     async findByCategoria(idCategoria: number) {
-        return this.prisma.modulos.findMany({
+        return this.prisma.scoped.modulos.findMany({
             where: { id_categoria: BigInt(idCategoria), estado: true },
             orderBy: { orden: 'asc' },
         });
     }
 
     async findOne(id: number) {
-        const modulo = await this.prisma.modulos.findUnique({
+        const modulo = await this.prisma.scoped.modulos.findUnique({
             where: { id_modulo: BigInt(id) },
             include: { categorias: true },
         });
@@ -48,7 +48,7 @@ export class ModulosService {
 
     async update(id: number, dto: UpdateModuloDto) {
         try {
-            return await this.prisma.modulos.update({
+            return await this.prisma.scoped.modulos.update({
                 where: { id_modulo: BigInt(id) },
                 data: {
                     nombre: dto.nombre,
@@ -71,7 +71,7 @@ export class ModulosService {
 
     async remove(id: number) {
         try {
-            await this.prisma.modulos.delete({
+            await this.prisma.scoped.modulos.delete({
                 where: { id_modulo: BigInt(id) },
             });
             return { message: 'Módulo eliminado' };

@@ -8,7 +8,7 @@ export class RolesUsuariosService {
   constructor(private readonly prisma: PrismaService) { }
 
   async create(createRolDto: CreateRolDto) {
-    return this.prisma.roles_usuarios.create({
+    return this.prisma.scoped.roles_usuarios.create({
       data: {
         nombre: createRolDto.nombre,
         descripcion: createRolDto.descripcion,
@@ -20,7 +20,7 @@ export class RolesUsuariosService {
   async findAll(estado?: boolean) {
     const where: any = {};
     if (estado !== undefined) where.estado = estado;
-    return this.prisma.roles_usuarios.findMany({
+    return this.prisma.scoped.roles_usuarios.findMany({
       where,
       orderBy: { id_rol_usuario: 'asc' },
       include: { usuarios_roles: true },
@@ -28,7 +28,7 @@ export class RolesUsuariosService {
   }
 
   async findOne(id: number) {
-    const rol = await this.prisma.roles_usuarios.findUnique({
+    const rol = await this.prisma.scoped.roles_usuarios.findUnique({
       where: { id_rol_usuario: BigInt(id) },
       include: { usuarios_roles: true },
     });
@@ -38,7 +38,7 @@ export class RolesUsuariosService {
 
   async update(id: number, updateRolDto: UpdateRolDto) {
     try {
-      const updated = await this.prisma.roles_usuarios.update({
+      const updated = await this.prisma.scoped.roles_usuarios.update({
         where: { id_rol_usuario: BigInt(id) },
         data: {
           nombre: updateRolDto.nombre,

@@ -11,7 +11,7 @@ export class EvidenciasService {
   ) {}
 
   async findAll(empresaId: number) {
-    return this.prisma.evidencias.findMany({
+    return this.prisma.scoped.evidencias.findMany({
       where: { id_empresa: empresaId },
       include: {
         usuarios: {
@@ -23,7 +23,7 @@ export class EvidenciasService {
   }
 
   async findByEntity(tipoEntidad: string, idEntidad: number) {
-    return this.prisma.evidencias.findMany({
+    return this.prisma.scoped.evidencias.findMany({
       where: {
         tipo_entidad: tipoEntidad,
         id_entidad: idEntidad,
@@ -38,7 +38,7 @@ export class EvidenciasService {
   }
 
   async findOne(id: number) {
-    const evidencia = await this.prisma.evidencias.findUnique({
+    const evidencia = await this.prisma.scoped.evidencias.findUnique({
       where: { id_evidencia: id },
       include: {
         usuarios: {
@@ -64,7 +64,7 @@ export class EvidenciasService {
     id_empresa: number;
     subido_por?: number;
   }) {
-    return this.prisma.evidencias.create({
+    return this.prisma.scoped.evidencias.create({
       data: {
         id_empresa: data.id_empresa,
         tipo_entidad: data.tipo_entidad,
@@ -101,19 +101,19 @@ export class EvidenciasService {
 
   async remove(id: number) {
     await this.findOne(id);
-    return this.prisma.evidencias.delete({
+    return this.prisma.scoped.evidencias.delete({
       where: { id_evidencia: id },
     });
   }
 
   async countByEntity(empresaId: number) {
-    const incidencias = await this.prisma.evidencias.count({
+    const incidencias = await this.prisma.scoped.evidencias.count({
       where: { id_empresa: empresaId, tipo_entidad: 'incidencia' },
     });
-    const entregas = await this.prisma.evidencias.count({
+    const entregas = await this.prisma.scoped.evidencias.count({
       where: { id_empresa: empresaId, tipo_entidad: 'entrega' },
     });
-    const guias = await this.prisma.evidencias.count({
+    const guias = await this.prisma.scoped.evidencias.count({
       where: { id_empresa: empresaId, tipo_entidad: 'guia' },
     });
     return { incidencias, entregas, guias, total: incidencias + entregas + guias };

@@ -8,12 +8,12 @@ export class SedesService {
   constructor(private readonly prisma: PrismaService) { }
 
   async create(createSedeDto: CreateSedeDto) {
-    const empresa = await this.prisma.empresas.findUnique({
+    const empresa = await this.prisma.scoped.empresas.findUnique({
       where: { id_empresa: BigInt(createSedeDto.id_empresa) },
     });
     if (!empresa) throw new NotFoundException('Empresa no encontrada');
 
-    return this.prisma.sedes.create({
+    return this.prisma.scoped.sedes.create({
       data: {
         id_empresa: BigInt(createSedeDto.id_empresa),
         nombre: createSedeDto.nombre,
@@ -30,7 +30,7 @@ export class SedesService {
   async findAll(tipo?: string) {
     const where: any = {};
     if (tipo) where.tipo_sede = tipo;
-    return this.prisma.sedes.findMany({
+    return this.prisma.scoped.sedes.findMany({
       where,
       include: { empresas: true },
       orderBy: { id_sede: 'asc' },
@@ -38,7 +38,7 @@ export class SedesService {
   }
 
   async findOne(id: number) {
-    const sede = await this.prisma.sedes.findUnique({
+    const sede = await this.prisma.scoped.sedes.findUnique({
       where: { id_sede: BigInt(id) },
       include: { empresas: true },
     });
@@ -48,7 +48,7 @@ export class SedesService {
 
   async update(id: number, updateSedeDto: UpdateSedeDto) {
     try {
-      const updated = await this.prisma.sedes.update({
+      const updated = await this.prisma.scoped.sedes.update({
         where: { id_sede: BigInt(id) },
         data: {
           id_empresa: updateSedeDto.id_empresa ? BigInt(updateSedeDto.id_empresa) : undefined,

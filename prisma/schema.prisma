@@ -103,6 +103,7 @@ model clientes_puestos {
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model detalle_carga {
+  orden_carga Int @default(1)
   id_detalle_carga        BigInt                    @id @default(autoincrement())
   id_empresa              BigInt
   id_operacion            BigInt
@@ -275,6 +276,7 @@ model frutas {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model guias_operativas {
+  cobertura Json?
   id_guia         BigInt        @id @default(autoincrement())
   id_empresa      BigInt
   numero_guia     String
@@ -324,6 +326,7 @@ model incidencias {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model items_reparto {
+  resoluciones_reparto resoluciones_reparto[]
   id_item_reparto       BigInt                  @id @default(autoincrement())
   id_empresa            BigInt
   id_detalle_carga      BigInt
@@ -760,4 +763,18 @@ model ubigeo_importacion {
   nombre_provincia         String?
 
   @@ignore
+}
+
+model resoluciones_reparto {
+  id_resolucion BigInt @id @default(autoincrement())
+  id_empresa BigInt
+  id_item_reparto BigInt
+  id_usuario BigInt
+  tipo String
+  cantidad Int
+  motivo String
+  clave_idempotencia String
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  items_reparto items_reparto @relation(fields: [id_item_reparto], references: [id_item_reparto], onDelete: NoAction)
+  @@unique([id_empresa, clave_idempotencia])
 }

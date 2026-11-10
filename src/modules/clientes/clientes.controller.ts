@@ -45,8 +45,8 @@ export class ClientesController {
   }
 
   @Get('all')
-  findAllWithoutPagination(@Query('buscar') buscar?: string) {
-    return this.clientesService.findAll(buscar);
+  findAllWithoutPagination(@Query() query: QueryClientesDto) {
+    return this.clientesService.findAll(query.buscar, query);
   }
 
   @Get('asignaciones-puestos')
@@ -109,7 +109,8 @@ export class ClientesController {
   removePuesto(
     @Param('id', ParseIntPipe) id: number,
     @Param('puestoId', ParseIntPipe) puestoId: number,
+    @Query('id_cliente_puesto') ocupacionId?: string,
   ) {
-    return this.clientesService.removePuesto(id, puestoId);
+    return this.clientesService.removePuesto(id, puestoId, ocupacionId ? Number(ocupacionId) : undefined);
   }
 }

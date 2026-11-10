@@ -1,3 +1,4 @@
+import { QueryPuestosDto } from './dto/query-puestos.dto';
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../config/prisma/prisma.service';
 import { CreatePuestoDto } from './dto/create-puesto.dto';
@@ -8,12 +9,12 @@ export class PuestosService {
   constructor(private readonly prisma: PrismaService) { }
 
   async create(createPuestoDto: CreatePuestoDto) {
-    const empresa = await this.prisma.empresas.findUnique({
+    const empresa = await this.prisma.scoped.empresas.findUnique({
       where: { id_empresa: BigInt(createPuestoDto.id_empresa) },
     });
     if (!empresa) throw new NotFoundException('Empresa no encontrada');
 
-    const mercado = await this.prisma.lugares_operativos.findFirst({
+    const mercado = await this.prisma.scoped.lugares_operativos.findFirst({
       where: {
         id_lugar: BigInt(createPuestoDto.id_lugar),
         tipo_lugar: 'mercado',
@@ -21,7 +22,7 @@ export class PuestosService {
     });
     if (!mercado) throw new NotFoundException('Mercado no encontrado');
 
-    return this.prisma.puestos.create({
+    return this.prisma.scoped.puestos.create({
       data: {
         id_empresa: BigInt(createPuestoDto.id_empresa),
         id_lugar: BigInt(createPuestoDto.id_lugar),
@@ -33,11 +34,13 @@ export class PuestosService {
     });
   }
 
-  async findAll(empresaId: number, estado?: boolean, mercadoId?: number) {
+  async findAll(empresaId: number, estado?: boolean, mercadoId?: number, query?: QueryPuestosDto) {
     const where: any = { id_empresa: BigInt(empresaId) };
     if (estado !== undefined) where.estado = estado;
     if (mercadoId) where.id_lugar = BigInt(mercadoId);
-    return this.prisma.puestos.findMany({
+    if (query?.id_sede || query?.tipo_lugar) where.lugares_operativos = { id_sede: query.id_sede, tipo_lugar: query.tipo_lugar };
+    if (query?.buscar) where.OR = [{ numero_puesto: { contains: query.buscar, mode: 'insensitive' } }, { referencia: { contains: query.buscar, mode: 'insensitive' } }];
+    return this.prisma.scoped.puestos.findMany({
       where,
       include: {
         empresas: true,
@@ -53,7 +56,7 @@ export class PuestosService {
     const where: any = { id_puesto: BigInt(id) };
     if (empresaId) where.id_empresa = BigInt(empresaId);
 
-    const puesto = await this.prisma.puestos.findFirst({
+    const puesto = await this.prisma.scoped.puestos.findFirst({
       where,
       include: { empresas: true, lugares_operativos: true },
     });
@@ -62,7 +65,7 @@ export class PuestosService {
   }
 
   async update(id: number, updatePuestoDto: UpdatePuestoDto) {
-    const existing = await this.prisma.puestos.findUnique({
+    const existing = await this.prisma.scoped.puestos.findUnique({
       where: { id_puesto: BigInt(id) },
     });
     if (!existing) throw new NotFoundException(`Puesto con ID ${id} no encontrado`);
@@ -73,7 +76,7 @@ export class PuestosService {
 
     try {
       if (updatePuestoDto.id_lugar) {
-        const mercado = await this.prisma.lugares_operativos.findFirst({
+        const mercado = await this.prisma.scoped.lugares_operativos.findFirst({
           where: {
             id_lugar: BigInt(updatePuestoDto.id_lugar),
             tipo_lugar: 'mercado',
@@ -82,7 +85,7 @@ export class PuestosService {
         if (!mercado) throw new NotFoundException('Mercado no encontrado');
       }
 
-      const updated = await this.prisma.puestos.update({
+      const updated = await this.prisma.scoped.puestos.update({
         where: { id_puesto: BigInt(id) },
         data: {
           id_lugar: updatePuestoDto.id_lugar ? BigInt(updatePuestoDto.id_lugar) : undefined,
@@ -101,7 +104,7 @@ export class PuestosService {
 
   async changeState(id: number, estado: boolean, empresaId?: number) {
     if (empresaId) {
-      const existing = await this.prisma.puestos.findFirst({
+      const existing = await this.prisma.scoped.puestos.findFirst({
         where: { id_puesto: BigInt(id), id_empresa: BigInt(empresaId) },
       });
       if (!existing) throw new NotFoundException(`Puesto con ID ${id} no encontrado`);
@@ -110,7 +113,7 @@ export class PuestosService {
   }
 
   async findByMercado(mercadoId: number, estado?: boolean) {
-    const mercado = await this.prisma.lugares_operativos.findFirst({
+    const mercado = await this.prisma.scoped.lugares_operativos.findFirst({
       where: {
         id_lugar: BigInt(mercadoId),
         tipo_lugar: 'mercado',
@@ -121,7 +124,7 @@ export class PuestosService {
     const where: any = { id_lugar: BigInt(mercadoId) };
     if (estado !== undefined) where.estado = estado;
 
-    return this.prisma.puestos.findMany({
+    return this.prisma.scoped.puestos.findMany({
       where,
       include: {
         empresas: true,

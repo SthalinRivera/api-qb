@@ -18,7 +18,7 @@ export class EmpresasService {
   }
 
   async create(createEmpresaDto: CreateEmpresaDto): Promise<Empresa> {
-    const newEmpresa = await this.prisma.empresas.create({
+    const newEmpresa = await this.prisma.scoped.empresas.create({
       data: {
         razon_social: createEmpresaDto.razon_social,
         nombre_comercial: createEmpresaDto.nombre_comercial,
@@ -32,14 +32,14 @@ export class EmpresasService {
   }
 
   async findAll(): Promise<Empresa[]> {
-    const empresas = await this.prisma.empresas.findMany({
+    const empresas = await this.prisma.scoped.empresas.findMany({
       orderBy: { id_empresa: 'asc' },
     });
     return empresas.map(e => this.toNumber(e));
   }
 
   async findOne(id: number): Promise<Empresa> {
-    const empresa = await this.prisma.empresas.findUnique({
+    const empresa = await this.prisma.scoped.empresas.findUnique({
       where: { id_empresa: BigInt(id) },
     });
     if (!empresa) {
@@ -50,7 +50,7 @@ export class EmpresasService {
 
   async update(id: number, updateEmpresaDto: UpdateEmpresaDto): Promise<Empresa> {
     try {
-      const updated = await this.prisma.empresas.update({
+      const updated = await this.prisma.scoped.empresas.update({
         where: { id_empresa: BigInt(id) },
         data: {
           razon_social: updateEmpresaDto.razon_social,

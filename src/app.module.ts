@@ -1,3 +1,8 @@
+import { UbigeoController } from './modules/ubigeo/ubigeo.controller';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { CompanyGuard } from './common/security/company.guard';
+import { CompanyInterceptor } from './common/security/company.interceptor';
+import { SupabaseAuthGuard } from './common/guards/supabase-auth.guard';
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -32,7 +37,7 @@ import { ReportesModule } from './modules/reportes/reportes.module';
 
 @Module({
   imports: [AuthModule, EmpresasModule, UsuariosModule, RolesUsuariosModule, ClientesModule, FrutasModule, VariedadesModule, CalidadesModule, TiposJabaModule, SedesModule, CamionesModule, LugaresOperativosModule, PuestosModule, OperacionesCargaModule, DetalleCargaModule, ItemsRepartoModule, GuiasOperativasModule, EntregasModule, DashboardModule, IncidenciasModule, JabasModule, EvidenciasModule, LogsActividadModule, CategoriasModule, ModulosModule, RolesModulosModule, ReportesModule],
-  controllers: [AppController],
-  providers: [AppService],
+  controllers: [AppController, UbigeoController],
+  providers: [AppService, SupabaseAuthGuard, { provide: APP_GUARD, useClass: CompanyGuard }, { provide: APP_INTERCEPTOR, useClass: CompanyInterceptor }],
 })
 export class AppModule { }

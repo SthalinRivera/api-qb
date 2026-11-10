@@ -45,7 +45,7 @@ export class ReportesService {
     const inicio = this.getFechaInicio(query);
     const fin = this.getFechaFin(query);
 
-    const operaciones = await this.prisma.operaciones_carga.groupBy({
+    const operaciones = await this.prisma.scoped.operaciones_carga.groupBy({
       by: ['fecha_carga'],
       where: {
         fecha_carga: { gte: inicio, lte: fin },
@@ -59,7 +59,7 @@ export class ReportesService {
     const resultados: ReporteCargaPorFecha[] = [];
 
     for (const op of operaciones) {
-      const detalles = await this.prisma.detalle_carga.findMany({
+      const detalles = await this.prisma.scoped.detalle_carga.findMany({
         where: {
           operaciones_carga: { fecha_carga: op.fecha_carga },
         },
@@ -104,7 +104,7 @@ export class ReportesService {
     const inicio = this.getFechaInicio(query);
     const fin = this.getFechaFin(query);
 
-    const detalles = await this.prisma.detalle_carga.findMany({
+    const detalles = await this.prisma.scoped.detalle_carga.findMany({
       where: {
         operaciones_carga: {
           fecha_carga: { gte: inicio, lte: fin },
@@ -166,7 +166,7 @@ export class ReportesService {
     const inicio = this.getFechaInicio(query);
     const fin = this.getFechaFin(query);
 
-    const items = await this.prisma.items_reparto.findMany({
+    const items = await this.prisma.scoped.items_reparto.findMany({
       where: {
         detalle_carga: {
           operaciones_carga: {
@@ -234,7 +234,7 @@ export class ReportesService {
     const inicio = this.getFechaInicio(query);
     const fin = this.getFechaFin(query);
 
-    const guias = await this.prisma.guias_operativas.findMany({
+    const guias = await this.prisma.scoped.guias_operativas.findMany({
       where: {
         fecha_emision: { gte: inicio, lte: fin },
         ...(query.estado && { estado: query.estado }),
@@ -288,7 +288,7 @@ export class ReportesService {
     const inicio = this.getFechaInicio(query);
     const fin = this.getFechaFin(query);
 
-    const entregas = await this.prisma.entregas.findMany({
+    const entregas = await this.prisma.scoped.entregas.findMany({
       where: {
         fecha_entrega: { gte: inicio, lte: fin },
         ...(query.estado && { estado_entrega: query.estado }),
@@ -359,7 +359,7 @@ export class ReportesService {
     const inicio = this.getFechaInicio(query);
     const fin = this.getFechaFin(query);
 
-    const incidencias = await this.prisma.incidencias.findMany({
+    const incidencias = await this.prisma.scoped.incidencias.findMany({
       where: {
         fecha_incidencia: { gte: inicio, lte: fin },
         ...(query.estado && { estado: query.estado }),
@@ -430,7 +430,7 @@ export class ReportesService {
     const inicio = this.getFechaInicio(query);
     const fin = this.getFechaFin(query);
 
-    const jabas = await this.prisma.jabas_por_pagar.findMany({
+    const jabas = await this.prisma.scoped.jabas_por_pagar.findMany({
       where: {
         fecha_origen: { gte: inicio, lte: fin },
         ...(query.estado && { estado: query.estado }),
@@ -505,7 +505,7 @@ export class ReportesService {
     const inicio = this.getFechaInicio(query);
     const fin = this.getFechaFin(query);
 
-    const jabas = await this.prisma.jabas_por_cobrar.findMany({
+    const jabas = await this.prisma.scoped.jabas_por_cobrar.findMany({
       where: {
         fecha_origen: { gte: inicio, lte: fin },
         ...(query.estado && { estado: query.estado }),
@@ -565,7 +565,7 @@ export class ReportesService {
     const inicio = this.getFechaInicio(query);
     const fin = this.getFechaFin(query);
 
-    const recuperaciones = await this.prisma.recuperaciones_jabas.findMany({
+    const recuperaciones = await this.prisma.scoped.recuperaciones_jabas.findMany({
       where: {
         fecha_recuperacion: { gte: inicio, lte: fin },
         ...(query.tipo_incidencia && { tipo_recuperacion: query.tipo_incidencia }),
@@ -609,7 +609,7 @@ export class ReportesService {
     const inicio = this.getFechaInicio(query);
     const fin = this.getFechaFin(query);
 
-    const devoluciones = await this.prisma.devoluciones_jabas_emisor.findMany({
+    const devoluciones = await this.prisma.scoped.devoluciones_jabas_emisor.findMany({
       where: {
         fecha_devolucion: { gte: inicio, lte: fin },
         ...(query.tipo_incidencia && { tipo_devolucion: query.tipo_incidencia }),
@@ -659,7 +659,7 @@ export class ReportesService {
       where.cliente_sede = { some: { id_sede: BigInt(query.id_sede) } };
     }
 
-    const sedes = await this.prisma.sedes.findMany({
+    const sedes = await this.prisma.scoped.sedes.findMany({
       where: query.id_sede ? { id_sede: BigInt(query.id_sede) } : { estado: true },
       include: {
         cliente_sede: {
@@ -709,7 +709,7 @@ export class ReportesService {
       ...(query.id_puesto && { id_puesto: BigInt(query.id_puesto) }),
     };
 
-    const puestos = await this.prisma.puestos.findMany({
+    const puestos = await this.prisma.scoped.puestos.findMany({
       where: query.id_puesto ? { id_puesto: BigInt(query.id_puesto) } : { estado: true },
       include: {
         lugares_operativos: {
@@ -764,7 +764,7 @@ export class ReportesService {
       }
     }
 
-    const asignaciones = await this.prisma.clientes_puestos.findMany({
+    const asignaciones = await this.prisma.scoped.clientes_puestos.findMany({
       where,
       include: {
         clientes: { select: { id_cliente: true, nombres: true, apellidos: true } },
@@ -802,7 +802,7 @@ export class ReportesService {
   }
 
   async getInventario(query: QueryReportesDto): Promise<ReporteInventario> {
-    const frutas = await this.prisma.frutas.findMany({
+    const frutas = await this.prisma.scoped.frutas.findMany({
       where: { estado: true },
       include: {
         variedades: { select: { id_variedad: true } },
@@ -812,7 +812,7 @@ export class ReportesService {
       },
     });
 
-    const variedades = await this.prisma.variedades.findMany({
+    const variedades = await this.prisma.scoped.variedades.findMany({
       where: { estado: true },
       include: {
         frutas: { select: { nombre: true } },
@@ -822,7 +822,7 @@ export class ReportesService {
       },
     });
 
-    const calidades = await this.prisma.calidades.findMany({
+    const calidades = await this.prisma.scoped.calidades.findMany({
       where: { estado: true },
       include: {
         detalle_carga_calidades: {
@@ -831,7 +831,7 @@ export class ReportesService {
       },
     });
 
-    const tiposJaba = await this.prisma.tipos_jaba.findMany({
+    const tiposJaba = await this.prisma.scoped.tipos_jaba.findMany({
       where: { estado: true },
       include: {
         detalle_carga: { select: { cantidad_jabas: true } },
@@ -882,7 +882,7 @@ export class ReportesService {
   }
 
   async getUsuariosRoles(query: QueryReportesDto): Promise<ReporteUsuariosRoles> {
-    const usuarios = await this.prisma.usuarios.findMany({
+    const usuarios = await this.prisma.scoped.usuarios.findMany({
       where: {
         estado: true,
         ...(query.id_usuario && { id_usuario: BigInt(query.id_usuario) }),
@@ -940,7 +940,7 @@ export class ReportesService {
     const inicio = this.getFechaInicio(query);
     const fin = this.getFechaFin(query);
 
-    const logs = await this.prisma.logs_actividad.findMany({
+    const logs = await this.prisma.scoped.logs_actividad.findMany({
       where: {
         created_at: { gte: inicio, lte: fin },
         ...(query.id_usuario && { id_usuario: BigInt(query.id_usuario) }),
@@ -997,7 +997,7 @@ export class ReportesService {
   }
 
   async getModulosPorRol(query: QueryReportesDto): Promise<ReporteModulosPorRol> {
-    const roles = await this.prisma.roles_usuarios.findMany({
+    const roles = await this.prisma.scoped.roles_usuarios.findMany({
       where: { estado: true },
       include: {
         roles_modulos: {
@@ -1033,7 +1033,7 @@ export class ReportesService {
     const fin = this.getFechaFin(query);
 
     // 1. Operaciones por fecha
-    const operacionesAgrupadas = await this.prisma.operaciones_carga.groupBy({
+    const operacionesAgrupadas = await this.prisma.scoped.operaciones_carga.groupBy({
       by: ['fecha_carga'],
       where: {
         fecha_carga: { gte: inicio, lte: fin },
@@ -1044,7 +1044,7 @@ export class ReportesService {
 
     const operaciones_por_fecha: DashboardGraficasResponse['operaciones_por_fecha'] = [];
     for (const op of operacionesAgrupadas) {
-      const jabasResult = await this.prisma.detalle_carga.aggregate({
+      const jabasResult = await this.prisma.scoped.detalle_carga.aggregate({
         where: {
           operaciones_carga: { fecha_carga: op.fecha_carga },
         },
@@ -1058,7 +1058,7 @@ export class ReportesService {
     }
 
     // 2. Jabas por fecha con desglose por tipo
-    const detallesConFecha = await this.prisma.detalle_carga.findMany({
+    const detallesConFecha = await this.prisma.scoped.detalle_carga.findMany({
       where: {
         operaciones_carga: { fecha_carga: { gte: inicio, lte: fin } },
       },
@@ -1088,7 +1088,7 @@ export class ReportesService {
       }));
 
     // 3. Guías por estado
-    const guiasTodas = await this.prisma.guias_operativas.findMany({
+    const guiasTodas = await this.prisma.scoped.guias_operativas.findMany({
       where: {
         fecha_emision: { gte: inicio, lte: fin },
       },
@@ -1122,7 +1122,7 @@ export class ReportesService {
       .map(([fecha, data]) => ({ fecha, ...data }));
 
     // 5. Entregas por fecha
-    const entregasTodas = await this.prisma.entregas.findMany({
+    const entregasTodas = await this.prisma.scoped.entregas.findMany({
       where: {
         fecha_entrega: { gte: inicio, lte: fin },
       },
@@ -1160,7 +1160,7 @@ export class ReportesService {
       .map(([fecha, data]) => ({ fecha, ...data }));
 
     // 6. Incidencias por tipo
-    const incidenciasTodas = await this.prisma.incidencias.findMany({
+    const incidenciasTodas = await this.prisma.scoped.incidencias.findMany({
       where: {
         fecha_incidencia: { gte: inicio, lte: fin },
       },
@@ -1177,7 +1177,7 @@ export class ReportesService {
     ).map(([tipo, cantidad]) => ({ tipo, cantidad }));
 
     // 7. Incidencias por fecha
-    const incidenciasConDetalle = await this.prisma.incidencias.findMany({
+    const incidenciasConDetalle = await this.prisma.scoped.incidencias.findMany({
       where: {
         fecha_incidencia: { gte: inicio, lte: fin },
       },

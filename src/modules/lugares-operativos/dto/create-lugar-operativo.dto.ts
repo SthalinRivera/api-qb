@@ -1,8 +1,10 @@
+import { Matches } from 'class-validator';
 import { IsString, IsInt, IsOptional, IsBoolean, IsEnum } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { TipoLugar } from '../../../common/enums';
 
 export class CreateLugarOperativoDto {
+  @IsOptional() @IsString() @Matches(/^\d{6}$/) id_ubigeo?: string;
   @ApiProperty({ example: 1 })
   @IsInt()
   id_empresa!: number;

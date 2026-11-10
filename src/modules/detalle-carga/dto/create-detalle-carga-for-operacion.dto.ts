@@ -2,6 +2,11 @@
 import { IsInt, IsOptional, IsString, IsBoolean, Min } from 'class-validator';
 
 export class CreateDetalleCargaForOperacionDto {
+    @IsOptional()
+    @IsInt()
+    @Min(1)
+    orden_carga?: number;
+
     @IsInt()
     id_cliente_emisor!: number;
 

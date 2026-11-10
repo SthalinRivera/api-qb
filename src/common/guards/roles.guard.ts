@@ -5,19 +5,13 @@ import { PrismaService } from '../../config/prisma/prisma.service';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
-    private readonly isAuthEnabled = process.env.ENABLE_AUTH === 'false';
-
     constructor(
         private reflector: Reflector,
         private prisma: PrismaService,
     ) { }
 
     async canActivate(context: ExecutionContext): Promise<boolean> {
-        if (!this.isAuthEnabled) {
-            return true;
-        }
-
-        const requiredRoles = this.reflector.get<string[]>('roles', context.getHandler());
+        const requiredRoles = this.reflector.getAllAndOverride<string[]>('roles', [context.getHandler(), context.getClass()]);
         if (!requiredRoles || requiredRoles.length === 0) {
             return true; // No se requieren roles específicos
         }

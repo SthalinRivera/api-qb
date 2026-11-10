@@ -1,3 +1,5 @@
+import { operacionAbierta } from '../operaciones-carga/estados-operacion';
+import { actorActual, exigirSupervisor } from '../../common/security/request-context';
 import { cargaEditable } from '../operaciones-carga/flujo-operacion';
 import {
   Injectable,
@@ -27,12 +29,12 @@ export class ItemsRepartoService {
   }
 
   private async assertEditable(detalleId: number | bigint) {
-    const detalle = await this.prisma.detalle_carga.findUnique({
+    const detalle = await this.prisma.scoped.detalle_carga.findUnique({
       where: { id_detalle_carga: detalleId },
       include: { operaciones_carga: true },
     });
     if (!detalle) throw new NotFoundException('Carga no encontrada.');
-    if (!cargaEditable(detalle.operaciones_carga.estado))
+    if (!operacionAbierta(detalle.operaciones_carga.estado))
       throw new BadRequestException(
         'La carga ya fue confirmada. No se pueden cambiar sus destinos.',
       );
@@ -40,28 +42,27 @@ export class ItemsRepartoService {
   }
 
   // ==================== CRUD ====================
-  async create(createDto: CreateItemRepartoDto) {
-    const carga = await this.assertEditable(createDto.id_detalle_carga);
-    if (carga.es_reparto)
-      throw new BadRequestException('Asigna el reparto desde sus calidades.');
-    await this.validateCantidadDisponible(
-      createDto.id_detalle_carga,
-      createDto.cantidad_asignada,
-    );
-    await this.validateRelations(createDto);
-
-    return this.prisma.items_reparto.create({
-      data: {
-        id_empresa: 1,
-        id_detalle_carga: BigInt(createDto.id_detalle_carga),
-        id_cliente_receptor: BigInt(createDto.id_cliente_receptor),
-        id_puesto: BigInt(createDto.id_puesto),
-        cantidad_asignada: createDto.cantidad_asignada,
-        orden_entrega: createDto.orden_entrega,
-        observaciones: createDto.observaciones,
-        seccion: createDto.seccion,
-      },
-      include: { detalle_carga: true, clientes: true, puestos: true },
+  private async bloquear(tx: any, detalleId: number | bigint) {
+    const ref = await tx.detalle_carga.findUnique({ where: { id_detalle_carga: detalleId } });
+    if (!ref) throw new NotFoundException('Carga no encontrada.');
+    await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${ref.id_operacion} FOR UPDATE`;
+    const op = await tx.operaciones_carga.findUniqueOrThrow({ where: { id_operacion: ref.id_operacion } });
+    if (!operacionAbierta(op.estado)) throw new BadRequestException('La operación está cerrada.');
+    return ref;
+  }
+  private async receptorValido(tx: any, cliente: number | bigint | null, puesto: number | bigint | null) {
+    if (!cliente || !puesto) throw new BadRequestException('Indica receptor y puesto.');
+    if (!await tx.clientes_puestos.findFirst({ where: { id_cliente: cliente, id_puesto: puesto, estado: true, fecha_fin: null } }))
+      throw new BadRequestException('El receptor no tiene una ocupación vigente en ese puesto.');
+  }
+  async create(dto: CreateItemRepartoDto) {
+    return this.prisma.scoped.$transaction(async (tx) => {
+      const carga = await this.bloquear(tx, dto.id_detalle_carga);
+      if (carga.es_reparto) throw new BadRequestException('Asigna las calidades explícitamente.');
+      const usados = await tx.items_reparto.aggregate({ where: { id_detalle_carga: dto.id_detalle_carga }, _sum: { cantidad_asignada: true } });
+      if (dto.cantidad_asignada <= 0 || !Number.isInteger(dto.cantidad_asignada) || (usados._sum.cantidad_asignada || 0) + dto.cantidad_asignada > carga.cantidad_jabas) throw new BadRequestException('La cantidad supera el saldo de la línea.');
+      await this.receptorValido(tx, dto.id_cliente_receptor, dto.id_puesto);
+      return tx.items_reparto.create({ data: { ...dto, id_empresa: carga.id_empresa } });
     });
   }
 
@@ -74,7 +75,7 @@ export class ItemsRepartoService {
     if (query.id_puesto) where.id_puesto = BigInt(query.id_puesto);
     if (query.seccion) where.seccion = query.seccion;
 
-    const items = await this.prisma.items_reparto.findMany({
+    const items = await this.prisma.scoped.items_reparto.findMany({
       where,
       include: {
         detalle_carga: {
@@ -110,7 +111,7 @@ export class ItemsRepartoService {
     // coincidencia por puesto, operación u otro contexto.
     const itemIds = items.map((item) => item.id_item_reparto);
 
-    const guias = await this.prisma.guias_operativas.findMany({
+    const guias = await this.prisma.scoped.guias_operativas.findMany({
       where: {
         id_item_reparto: { in: itemIds },
         id_puesto: { not: null },
@@ -136,7 +137,7 @@ export class ItemsRepartoService {
     }));
   }
   async findOne(id: number) {
-    const item = await this.prisma.items_reparto.findUnique({
+    const item = await this.prisma.scoped.items_reparto.findUnique({
       where: { id_item_reparto: BigInt(id) },
       include: {
         detalle_carga: true,
@@ -157,60 +158,82 @@ export class ItemsRepartoService {
     return item;
   }
 
-  async update(id: number, updateDto: UpdateItemRepartoDto) {
-    const actual = await this.findOne(id);
-    await this.assertEditable(actual.id_detalle_carga);
-    if (actual.items_reparto_detalle.length)
-      throw new BadRequestException(
-        'Elimina la asignación y vuelve a crearla desde las calidades.',
-      );
-    if (
-      updateDto.id_detalle_carga &&
-      BigInt(updateDto.id_detalle_carga) !== actual.id_detalle_carga
-    )
-      throw new BadRequestException(
-        'No se puede mover un destino a otra carga.',
-      );
-    if (Object.keys(updateDto).length === 0) {
-      throw new BadRequestException('No se enviaron datos para actualizar');
-    }
-    await this.validateRelations(updateDto);
-
-    // Validar cantidad si se proporciona
-    if (updateDto.cantidad_asignada !== undefined) {
-      await this.validateCantidadDisponible(
-        Number(actual.id_detalle_carga),
-        updateDto.cantidad_asignada,
-        id,
-      );
-    }
-
-    const data: any = { ...updateDto };
-    if (data.id_detalle_carga)
-      data.id_detalle_carga = BigInt(data.id_detalle_carga);
-    if (data.id_cliente_receptor)
-      data.id_cliente_receptor = BigInt(data.id_cliente_receptor);
-    if (data.id_puesto) data.id_puesto = BigInt(data.id_puesto);
-
-    return this.prisma.items_reparto.update({
-      where: { id_item_reparto: BigInt(id) },
-      data,
-      include: { detalle_carga: true, clientes: true, puestos: true },
+  async update(id: number, dto: UpdateItemRepartoDto) {
+    return this.prisma.scoped.$transaction(async (tx) => {
+      const ref = await tx.items_reparto.findUnique({ where: { id_item_reparto: id } });
+      if (!ref) throw new NotFoundException('Destino no encontrado.');
+      const carga = await this.bloquear(tx, ref.id_detalle_carga);
+      const item = await tx.items_reparto.findUniqueOrThrow({ where: { id_item_reparto: id }, include: { entregas: true, guias_operativas: true, items_reparto_detalle: true, resoluciones_reparto: true } });
+      if (item.entregas.length || item.resoluciones_reparto.length || item.guias_operativas.some((g) => !['anulada','reemplazada'].includes(g.estado || ''))) throw new BadRequestException('El destino tiene movimientos físicos o una guía vigente.');
+      if (dto.id_detalle_carga !== undefined && BigInt(dto.id_detalle_carga) !== item.id_detalle_carga) throw new BadRequestException('No se puede mover el destino a otra línea.');
+      const cantidad = dto.cantidad_asignada ?? item.cantidad_asignada;
+      const usados = await tx.items_reparto.aggregate({ where: { id_detalle_carga: item.id_detalle_carga, id_item_reparto: { not: item.id_item_reparto } }, _sum: { cantidad_asignada: true } });
+      if (cantidad <= 0 || !Number.isInteger(cantidad) || cantidad + (usados._sum.cantidad_asignada || 0) > carga.cantidad_jabas) throw new BadRequestException('Cantidad fuera del saldo de la línea.');
+      if (carga.es_reparto && cantidad !== item.items_reparto_detalle.reduce((sum, d) => sum + d.cantidad, 0)) throw new BadRequestException('Reajusta explícitamente el desglose de calidades.');
+      await this.receptorValido(tx, dto.id_cliente_receptor ?? item.id_cliente_receptor, dto.id_puesto ?? item.id_puesto);
+      return tx.items_reparto.update({ where: { id_item_reparto: id }, data: dto });
+    });
+  }
+  async remove(id: number) {
+    return this.prisma.scoped.$transaction(async (tx) => {
+      const ref = await tx.items_reparto.findUnique({ where: { id_item_reparto: id } });
+      if (!ref) throw new NotFoundException('Destino no encontrado.');
+      await this.bloquear(tx, ref.id_detalle_carga);
+      const item = await tx.items_reparto.findUniqueOrThrow({ where: { id_item_reparto: id }, include: { entregas: true, guias_operativas: true, resoluciones_reparto: true } });
+      if (item.entregas.length || item.guias_operativas.length || item.resoluciones_reparto.length) throw new BadRequestException('Este destino tiene historial; corrígelo explícitamente sin eliminarlo.');
+      await tx.items_reparto_detalle.deleteMany({ where: { id_item_reparto: id } });
+      return tx.items_reparto.delete({ where: { id_item_reparto: id } });
     });
   }
 
-  async remove(id: number) {
-    const item = await this.findOne(id);
-    await this.assertEditable(item.id_detalle_carga);
-    if (item.entregas.length)
-      throw new BadRequestException('Este destino ya tiene entregas.');
-    return this.prisma.$transaction(async (tx) => {
-      await tx.items_reparto_detalle.deleteMany({
-        where: { id_item_reparto: BigInt(id) },
-      });
-      return tx.items_reparto.delete({
-        where: { id_item_reparto: BigInt(id) },
-      });
+  async reajustar(id: number, dto: CreateItemRepartoConDetallesDto) {
+    return this.prisma.scoped.$transaction(async (tx) => {
+      const ref = await tx.items_reparto.findUnique({ where: { id_item_reparto: id } });
+      if (!ref || ref.id_detalle_carga !== BigInt(dto.id_detalle_carga)) throw new NotFoundException('El ítem no pertenece a la línea indicada.');
+      const carga = await this.bloquear(tx, ref.id_detalle_carga);
+      const item = await tx.items_reparto.findUniqueOrThrow({ where: { id_item_reparto: id }, include: { entregas: true, guias_operativas: true, resoluciones_reparto: true } });
+      if (item.entregas.length || item.resoluciones_reparto.length || item.guias_operativas.some((g) => !['anulada','reemplazada'].includes(g.estado || ''))) throw new BadRequestException('Anula la guía antes de reajustar. Los movimientos físicos no se reescriben.');
+      if (!carga.es_reparto || !dto.detalles.length) throw new BadRequestException('El reajuste requiere una carga clasificada y un desglose.');
+      await this.receptorValido(tx, dto.id_cliente_receptor, dto.id_puesto);
+      const solicitado = new Map<number, number>();
+      for (const d of dto.detalles) {
+        if (!Number.isInteger(d.cantidad) || d.cantidad <= 0 || (d.precio_unitario != null && (!Number.isFinite(d.precio_unitario) || d.precio_unitario < 0))) throw new BadRequestException('Cantidad o precio inválido.');
+        solicitado.set(d.id_detalle_carga_calidad, (solicitado.get(d.id_detalle_carga_calidad) || 0) + d.cantidad);
+      }
+      for (const [calidadId, cantidad] of solicitado) {
+        const calidad = await tx.detalle_carga_calidades.findUnique({ where: { id_detalle_carga_calidad: calidadId } });
+        if (!calidad || calidad.id_detalle_carga !== ref.id_detalle_carga) throw new BadRequestException('La calidad no pertenece a la línea.');
+        const usado = await tx.items_reparto_detalle.aggregate({ where: { id_detalle_carga_calidad: calidadId, id_item_reparto: { not: BigInt(id) } }, _sum: { cantidad: true } });
+        if ((usado._sum.cantidad || 0) + cantidad > calidad.cantidad) throw new BadRequestException('La asignación supera el saldo de calidad.');
+      }
+      const total = [...solicitado.values()].reduce((sum, c) => sum + c, 0);
+      const otros = await tx.items_reparto.aggregate({ where: { id_detalle_carga: ref.id_detalle_carga, id_item_reparto: { not: BigInt(id) } }, _sum: { cantidad_asignada: true } });
+      if ((otros._sum.cantidad_asignada || 0) + total > carga.cantidad_jabas) throw new BadRequestException('La asignación supera la carga.');
+      await tx.items_reparto_detalle.deleteMany({ where: { id_item_reparto: id } });
+      for (const d of dto.detalles) await tx.items_reparto_detalle.create({ data: { ...d, id_item_reparto: id, id_empresa: ref.id_empresa } });
+      return tx.items_reparto.update({ where: { id_item_reparto: id }, data: { id_cliente_receptor: dto.id_cliente_receptor, id_puesto: dto.id_puesto, cantidad_asignada: total, observaciones: dto.observaciones, seccion: dto.seccion }, include: { items_reparto_detalle: true } });
+    });
+  }
+
+  async resolver(id: number, dto: { tipo: string; cantidad: number; motivo: string; clave_idempotencia: string }) {
+    const actor = exigirSupervisor();
+    if (!['devolucion','merma'].includes(dto.tipo) || !Number.isInteger(dto.cantidad) || dto.cantidad <= 0 || !dto.motivo?.trim() || !dto.clave_idempotencia?.trim()) throw new BadRequestException('Indica tipo, cantidad positiva, motivo y clave de solicitud.');
+    return this.prisma.scoped.$transaction(async (tx) => {
+      const ref = await tx.items_reparto.findUnique({ where: { id_item_reparto: id } });
+      if (!ref) throw new NotFoundException('Destino no encontrado.');
+      const carga = await this.bloquear(tx, ref.id_detalle_carga);
+      const op = await tx.operaciones_carga.findUniqueOrThrow({ where: { id_operacion: carga.id_operacion } });
+      if (op.estado !== 'repartiendo') throw new BadRequestException('Las resoluciones físicas se registran durante el reparto.');
+      const previa = await tx.resoluciones_reparto.findFirst({ where: { clave_idempotencia: dto.clave_idempotencia } });
+      if (previa) {
+        if (previa.id_item_reparto !== BigInt(id) || previa.cantidad !== dto.cantidad || previa.tipo !== dto.tipo || previa.motivo !== dto.motivo.trim()) throw new BadRequestException('La clave ya identifica otra resolución.');
+        return previa;
+      }
+      const item = await tx.items_reparto.findUniqueOrThrow({ where: { id_item_reparto: id }, include: { entregas: true, resoluciones_reparto: true } });
+      const recibidas = item.entregas.filter((e) => e.estado_entrega !== 'pendiente').reduce((sum, e) => sum + e.cantidad_entregada, 0);
+      const resueltas = item.resoluciones_reparto.reduce((sum, r) => sum + r.cantidad, 0);
+      if (recibidas + resueltas + dto.cantidad > item.cantidad_asignada) throw new BadRequestException('La resolución supera el saldo físico.');
+      return tx.resoluciones_reparto.create({ data: { ...dto, motivo: dto.motivo.trim(), id_item_reparto: id, id_empresa: actor.empresaId, id_usuario: actor.usuarioId } });
     });
   }
 
@@ -225,7 +248,7 @@ export class ItemsRepartoService {
     const where: any = {};
     if (itemId) where.id_item_reparto = BigInt(itemId);
 
-    return this.prisma.items_reparto_detalle.findMany({
+    return this.prisma.scoped.items_reparto_detalle.findMany({
       where,
       include: {
         detalle_carga_calidades: {
@@ -237,7 +260,7 @@ export class ItemsRepartoService {
   }
 
   async findOneDetalle(id: number) {
-    const detalle = await this.prisma.items_reparto_detalle.findUnique({
+    const detalle = await this.prisma.scoped.items_reparto_detalle.findUnique({
       where: { id_item_reparto_detalle: BigInt(id) },
       include: {
         detalle_carga_calidades: { include: { calidades: true } },
@@ -269,7 +292,7 @@ export class ItemsRepartoService {
     cantidadAsignar: number,
     excludeItemId?: number,
   ) {
-    const detalle = await this.prisma.detalle_carga.findUnique({
+    const detalle = await this.prisma.scoped.detalle_carga.findUnique({
       where: { id_detalle_carga: BigInt(detalleId) },
     });
     if (!detalle) throw new NotFoundException('Detalle no encontrado');
@@ -279,7 +302,7 @@ export class ItemsRepartoService {
       whereItem.NOT = { id_item_reparto: BigInt(excludeItemId) };
     }
 
-    const asignadoTotal = await this.prisma.items_reparto.aggregate({
+    const asignadoTotal = await this.prisma.scoped.items_reparto.aggregate({
       where: whereItem,
       _sum: { cantidad_asignada: true },
     });
@@ -294,7 +317,7 @@ export class ItemsRepartoService {
 
   private async validateRelations(dto: any) {
     if (dto.id_detalle_carga) {
-      const exists = await this.prisma.detalle_carga.findUnique({
+      const exists = await this.prisma.scoped.detalle_carga.findUnique({
         where: { id_detalle_carga: BigInt(dto.id_detalle_carga) },
       });
       if (!exists)
@@ -303,7 +326,7 @@ export class ItemsRepartoService {
         );
     }
     if (dto.id_cliente_receptor) {
-      const exists = await this.prisma.clientes.findUnique({
+      const exists = await this.prisma.scoped.clientes.findUnique({
         where: { id_cliente: BigInt(dto.id_cliente_receptor) },
       });
       if (!exists)
@@ -312,7 +335,7 @@ export class ItemsRepartoService {
         );
     }
     if (dto.id_puesto) {
-      const exists = await this.prisma.puestos.findUnique({
+      const exists = await this.prisma.scoped.puestos.findUnique({
         where: { id_puesto: BigInt(dto.id_puesto) },
       });
       if (!exists)
@@ -322,7 +345,7 @@ export class ItemsRepartoService {
 
   // ==================== ENDPOINTS ANIDADOS ====================
   async findByDetalleCarga(detalleId: number) {
-    const detalle = await this.prisma.detalle_carga.findUnique({
+    const detalle = await this.prisma.scoped.detalle_carga.findUnique({
       where: { id_detalle_carga: BigInt(detalleId) },
     });
     if (!detalle)
@@ -330,7 +353,7 @@ export class ItemsRepartoService {
         `Detalle de carga con ID ${detalleId} no existe`,
       );
 
-    return this.prisma.items_reparto.findMany({
+    return this.prisma.scoped.items_reparto.findMany({
       where: { id_detalle_carga: BigInt(detalleId) },
       include: {
         clientes: true,
@@ -353,7 +376,7 @@ export class ItemsRepartoService {
       throw new BadRequestException(
         'Agrega al menos una calidad y un destino.',
       );
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.scoped.$transaction(async (tx) => {
       const ref = await tx.detalle_carga.findUnique({
         where: { id_detalle_carga: dto.id_detalle_carga },
       });
@@ -367,7 +390,7 @@ export class ItemsRepartoService {
           items_reparto: { include: { items_reparto_detalle: true } },
         },
       });
-      if (!detalle || !cargaEditable(detalle.operaciones_carga.estado))
+      if (!detalle || !operacionAbierta(detalle.operaciones_carga.estado))
         throw new BadRequestException(
           'La carga ya fue confirmada o está cancelada.',
         );

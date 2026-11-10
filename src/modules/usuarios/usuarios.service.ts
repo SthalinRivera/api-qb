@@ -11,7 +11,7 @@ export class UsuariosService {
 
   // ==================== CRUD tradicional ====================
   async create(createUsuarioDto: CreateUsuarioDto) {
-    const empresa = await this.prisma.empresas.findUnique({
+    const empresa = await this.prisma.scoped.empresas.findUnique({
       where: { id_empresa: BigInt(createUsuarioDto.id_empresa) },
     });
     if (!empresa) throw new NotFoundException('Empresa no encontrada');
@@ -20,7 +20,7 @@ export class UsuariosService {
       throw new BadRequestException('La sede es obligatoria');
     }
 
-    const sede = await this.prisma.sedes.findFirst({
+    const sede = await this.prisma.scoped.sedes.findFirst({
       where: {
         id_sede: BigInt(createUsuarioDto.id_sede),
         id_empresa: BigInt(createUsuarioDto.id_empresa),
@@ -28,7 +28,7 @@ export class UsuariosService {
     });
     if (!sede) throw new NotFoundException('Sede no pertenece a la empresa');
 
-    return this.prisma.usuarios.create({
+    return this.prisma.scoped.usuarios.create({
       data: {
         nombres: createUsuarioDto.nombres,
         apellidos: createUsuarioDto.apellidos,
@@ -45,14 +45,14 @@ export class UsuariosService {
 
   async createFull(dto: CreateFullUsuarioDto) {
     // Validar email único antes de la transacción
-    const existingEmail = await this.prisma.usuarios.findFirst({
+    const existingEmail = await this.prisma.scoped.usuarios.findFirst({
       where: { email: dto.email },
     });
     if (existingEmail) throw new ConflictException('El email ya está registrado');
 
     // Validar que todos los roles existan (opcional pero recomendado)
     if (dto.roles && dto.roles.length > 0) {
-      const rolesExistentes = await this.prisma.roles_usuarios.findMany({
+      const rolesExistentes = await this.prisma.scoped.roles_usuarios.findMany({
         where: { id_rol_usuario: { in: dto.roles.map(id => BigInt(id)) } },
       });
       if (rolesExistentes.length !== dto.roles.length) {
@@ -60,7 +60,7 @@ export class UsuariosService {
       }
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.scoped.$transaction(async (tx) => {
       // 1. Validar empresa
       const empresa = await tx.empresas.findUnique({
         where: { id_empresa: BigInt(dto.id_empresa) },
@@ -107,7 +107,7 @@ export class UsuariosService {
   }
 
   async updateFull(id: number, dto: UpdateFullUsuarioDto) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.scoped.$transaction(async (tx) => {
       // Verificar existencia
       const existing = await tx.usuarios.findUnique({
         where: { id_usuario: BigInt(id) },
@@ -169,7 +169,7 @@ export class UsuariosService {
   }
 
   async findAll() {
-    return this.prisma.usuarios.findMany({
+    return this.prisma.scoped.usuarios.findMany({
       include: {
         empresas: true,
         sedes: true,
@@ -180,7 +180,7 @@ export class UsuariosService {
   }
 
   async findOne(id: number) {
-    const usuario = await this.prisma.usuarios.findUnique({
+    const usuario = await this.prisma.scoped.usuarios.findUnique({
       where: { id_usuario: BigInt(id) },
       include: {
         empresas: true,
@@ -197,13 +197,13 @@ export class UsuariosService {
   async update(id: number, updateUsuarioDto: UpdateUsuarioDto) {
     try {
       if (updateUsuarioDto.id_empresa) {
-        const empresa = await this.prisma.empresas.findUnique({
+        const empresa = await this.prisma.scoped.empresas.findUnique({
           where: { id_empresa: BigInt(updateUsuarioDto.id_empresa) },
         });
         if (!empresa) throw new NotFoundException('Empresa no encontrada');
       }
       if (updateUsuarioDto.id_sede && updateUsuarioDto.id_empresa) {
-        const sede = await this.prisma.sedes.findFirst({
+        const sede = await this.prisma.scoped.sedes.findFirst({
           where: {
             id_sede: BigInt(updateUsuarioDto.id_sede),
             id_empresa: BigInt(updateUsuarioDto.id_empresa),
@@ -212,7 +212,7 @@ export class UsuariosService {
         if (!sede) throw new NotFoundException('Sede no pertenece a la empresa');
       }
 
-      const updated = await this.prisma.usuarios.update({
+      const updated = await this.prisma.scoped.usuarios.update({
         where: { id_usuario: BigInt(id) },
         data: {
           nombres: updateUsuarioDto.nombres,
@@ -238,22 +238,22 @@ export class UsuariosService {
   }
 
   async assignRole(usuarioId: number, rolId: number) {
-    const usuario = await this.prisma.usuarios.findUnique({
+    const usuario = await this.prisma.scoped.usuarios.findUnique({
       where: { id_usuario: BigInt(usuarioId) },
     });
     if (!usuario) throw new NotFoundException('Usuario no encontrado');
 
-    const rol = await this.prisma.roles_usuarios.findUnique({
+    const rol = await this.prisma.scoped.roles_usuarios.findUnique({
       where: { id_rol_usuario: BigInt(rolId) },
     });
     if (!rol) throw new NotFoundException('Rol no encontrado');
 
-    const existing = await this.prisma.usuarios_roles.findFirst({
+    const existing = await this.prisma.scoped.usuarios_roles.findFirst({
       where: { id_usuario: BigInt(usuarioId), id_rol_usuario: BigInt(rolId) },
     });
     if (existing) throw new BadRequestException('El usuario ya tiene este rol');
 
-    return this.prisma.usuarios_roles.create({
+    return this.prisma.scoped.usuarios_roles.create({
       data: {
         id_usuario: BigInt(usuarioId),
         id_rol_usuario: BigInt(rolId),
@@ -262,7 +262,7 @@ export class UsuariosService {
   }
 
   async removeRole(usuarioId: number, rolId: number) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.scoped.$transaction(async (tx) => {
       const relation = await tx.usuarios_roles.findFirst({
         where: { id_usuario: BigInt(usuarioId), id_rol_usuario: BigInt(rolId) },
       });
@@ -282,7 +282,7 @@ export class UsuariosService {
   }
 
   async getRolesByUser(usuarioId: number) {
-    const usuario = await this.prisma.usuarios.findUnique({
+    const usuario = await this.prisma.scoped.usuarios.findUnique({
       where: { id_usuario: BigInt(usuarioId) },
       include: { usuarios_roles: { include: { roles_usuarios: true } } },
     });

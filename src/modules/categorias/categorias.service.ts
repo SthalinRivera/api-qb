@@ -9,7 +9,7 @@ export class CategoriasService {
     constructor(private readonly prisma: PrismaService) {}
 
     async create(dto: CreateCategoriaDto) {
-        return this.prisma.categorias.create({
+        return this.prisma.scoped.categorias.create({
             data: {
                 nombre: dto.nombre,
                 descripcion: dto.descripcion,
@@ -24,7 +24,7 @@ export class CategoriasService {
     async findAll(estado?: boolean) {
         const where: any = {};
         if (estado !== undefined) where.estado = estado;
-        return this.prisma.categorias.findMany({
+        return this.prisma.scoped.categorias.findMany({
             where,
             orderBy: { orden: 'asc' },
             include: { modulos: { orderBy: { orden: 'asc' } } },
@@ -32,7 +32,7 @@ export class CategoriasService {
     }
 
     async findOne(id: number) {
-        const cat = await this.prisma.categorias.findUnique({
+        const cat = await this.prisma.scoped.categorias.findUnique({
             where: { id_categoria: BigInt(id) },
             include: { modulos: { orderBy: { orden: 'asc' } } },
         });
@@ -42,7 +42,7 @@ export class CategoriasService {
 
     async update(id: number, dto: UpdateCategoriaDto) {
         try {
-            return await this.prisma.categorias.update({
+            return await this.prisma.scoped.categorias.update({
                 where: { id_categoria: BigInt(id) },
                 data: {
                     nombre: dto.nombre,
@@ -65,18 +65,18 @@ export class CategoriasService {
 
     async reorder(dto: ReorderCategoriasDto) {
         const operations = dto.items.map((item) =>
-            this.prisma.categorias.update({
+            this.prisma.scoped.categorias.update({
                 where: { id_categoria: BigInt(item.id_categoria) },
                 data: { orden: item.orden },
             }),
         );
-        await this.prisma.$transaction(operations);
+        await this.prisma.scoped.$transaction(operations);
         return this.findAll();
     }
 
     async remove(id: number) {
         try {
-            await this.prisma.categorias.delete({
+            await this.prisma.scoped.categorias.delete({
                 where: { id_categoria: BigInt(id) },
             });
             return { message: 'Categoría eliminada' };

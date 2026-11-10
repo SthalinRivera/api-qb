@@ -8,12 +8,12 @@ export class CamionesService {
   constructor(private readonly prisma: PrismaService) { }
 
   async create(createCamionDto: CreateCamionDto) {
-    const empresa = await this.prisma.empresas.findUnique({
+    const empresa = await this.prisma.scoped.empresas.findUnique({
       where: { id_empresa: BigInt(createCamionDto.id_empresa) },
     });
     if (!empresa) throw new NotFoundException('Empresa no encontrada');
 
-    return this.prisma.camiones.create({
+    return this.prisma.scoped.camiones.create({
       data: {
         id_empresa: BigInt(createCamionDto.id_empresa),
         placa: createCamionDto.placa,
@@ -28,7 +28,7 @@ export class CamionesService {
   async findAll(empresaId: number, estado?: boolean) {
     const where: any = { id_empresa: BigInt(empresaId) };
     if (estado !== undefined) where.estado = estado;
-    return this.prisma.camiones.findMany({
+    return this.prisma.scoped.camiones.findMany({
       where,
       include: { empresas: true },
       orderBy: { placa: 'asc' },
@@ -39,7 +39,7 @@ export class CamionesService {
     const where: any = { id_camion: BigInt(id) };
     if (empresaId) where.id_empresa = BigInt(empresaId);
 
-    const camion = await this.prisma.camiones.findFirst({
+    const camion = await this.prisma.scoped.camiones.findFirst({
       where,
       include: { empresas: true },
     });
@@ -48,7 +48,7 @@ export class CamionesService {
   }
 
   async update(id: number, updateCamionDto: UpdateCamionDto) {
-    const existing = await this.prisma.camiones.findUnique({
+    const existing = await this.prisma.scoped.camiones.findUnique({
       where: { id_camion: BigInt(id) },
     });
     if (!existing) throw new NotFoundException(`Camión con ID ${id} no encontrado`);
@@ -58,7 +58,7 @@ export class CamionesService {
     }
 
     try {
-      const updated = await this.prisma.camiones.update({
+      const updated = await this.prisma.scoped.camiones.update({
         where: { id_camion: BigInt(id) },
         data: {
           placa: updateCamionDto.placa,
@@ -77,7 +77,7 @@ export class CamionesService {
 
   async changeState(id: number, estado: boolean, empresaId?: number) {
     if (empresaId) {
-      const existing = await this.prisma.camiones.findFirst({
+      const existing = await this.prisma.scoped.camiones.findFirst({
         where: { id_camion: BigInt(id), id_empresa: BigInt(empresaId) },
       });
       if (!existing) throw new NotFoundException(`Camión con ID ${id} no encontrado`);

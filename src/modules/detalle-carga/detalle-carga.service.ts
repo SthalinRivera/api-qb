@@ -1,3 +1,4 @@
+import { operacionAbierta } from '../operaciones-carga/estados-operacion';
 import { Prisma } from '@prisma/client';
 import { cargaEditable } from '../operaciones-carga/flujo-operacion';
 // detalle-carga.service.ts
@@ -31,7 +32,7 @@ export class DetalleCargaService {
         items_reparto: { include: { entregas: true, guias_operativas: true } },
       },
     });
-    if (!cargaEditable(detalle.operaciones_carga.estado))
+    if (!operacionAbierta(detalle.operaciones_carga.estado))
       throw new BadRequestException(
         'Esta carga ya fue confirmada o está cancelada y no puede modificarse.',
       );
@@ -39,12 +40,12 @@ export class DetalleCargaService {
   }
 
   async create(operacionId: number, dto: CreateDetalleCargaForOperacionDto) {
-    const operacion = await this.prisma.operaciones_carga.findUnique({
+    const operacion = await this.prisma.scoped.operaciones_carga.findUnique({
       where: { id_operacion: operacionId },
     });
     if (!operacion)
       throw new NotFoundException(`Operación con ID ${operacionId} no existe`);
-    if (!cargaEditable(operacion.estado)) {
+    if (!operacionAbierta(operacion.estado)) {
       throw new BadRequestException(
         'No se puede agregar detalles a una operación en tránsito o cancelada',
       );
@@ -60,18 +61,22 @@ export class DetalleCargaService {
       );
     await this.validateRelations(dto);
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.scoped.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${BigInt(operacionId)} FOR UPDATE`;
       const actual = await tx.operaciones_carga.findUniqueOrThrow({
         where: { id_operacion: operacionId },
       });
-      if (!cargaEditable(actual.estado))
+      if (!operacionAbierta(actual.estado))
         throw new BadRequestException('La carga ya fue confirmada.');
+      const ultimo = await tx.detalle_carga.aggregate({ where: { id_operacion: operacionId }, _max: { orden_carga: true } });
+      const orden = dto.orden_carga ?? (ultimo._max.orden_carga || 0) + 1;
+      if (await tx.detalle_carga.count({ where: { id_operacion: operacionId, orden_carga: orden } })) throw new BadRequestException('El orden ya está ocupado.');
       // 1. Crear detalle de carga
       const detalle = await tx.detalle_carga.create({
         data: {
           id_empresa: operacion.id_empresa,
           id_operacion: operacionId,
+          orden_carga: orden,
           id_cliente_emisor: dto.id_cliente_emisor,
           id_fruta: dto.id_fruta,
           id_variedad: dto.id_variedad,
@@ -159,14 +164,14 @@ export class DetalleCargaService {
    */
   // detalle-carga.service.ts
   async findByOperacion(operacionId: number) {
-    const operacion = await this.prisma.operaciones_carga.findUnique({
+    const operacion = await this.prisma.scoped.operaciones_carga.findUnique({
       where: { id_operacion: operacionId },
     });
     if (!operacion) {
       throw new NotFoundException(`Operación con ID ${operacionId} no existe`);
     }
 
-    return this.prisma.detalle_carga.findMany({
+    return this.prisma.scoped.detalle_carga.findMany({
       where: { id_operacion: operacionId },
       include: {
         clientes: true,
@@ -184,7 +189,7 @@ export class DetalleCargaService {
           },
         },
       },
-      orderBy: { id_detalle_carga: 'asc' },
+      orderBy: { orden_carga: 'asc' },
     });
   }
 
@@ -192,7 +197,7 @@ export class DetalleCargaService {
    * Obtiene un detalle de carga por su ID, con todas sus relaciones.
    */
   async findOne(id: number) {
-    const detalle = await this.prisma.detalle_carga.findUnique({
+    const detalle = await this.prisma.scoped.detalle_carga.findUnique({
       where: { id_detalle_carga: id },
       include: {
         clientes: true,
@@ -217,7 +222,7 @@ export class DetalleCargaService {
    * No se permite cambiar el item de reparto asociado (se gestiona aparte).
    */
   async update(id: number, dto: UpdateDetalleCargaDto) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.scoped.$transaction(async (tx) => {
       const detalle = await this.editableDetalle(tx, id);
       if (!Object.keys(dto).length)
         throw new BadRequestException('No se enviaron cambios.');
@@ -225,6 +230,9 @@ export class DetalleCargaService {
         throw new BadRequestException(
           'El tipo de entrega no puede cambiarse después de crear el producto.',
         );
+      if (dto.orden_carga !== undefined && await tx.detalle_carga.count({ where: { id_operacion: detalle.id_operacion, orden_carga: dto.orden_carga, id_detalle_carga: { not: detalle.id_detalle_carga } } })) throw new BadRequestException('El orden ya está ocupado.');
+      if (detalle.items_reparto.some((i) => i.entregas.length || i.guias_operativas.some((g) => !['anulada','reemplazada'].includes(g.estado || ''))))
+        throw new BadRequestException('El producto tiene entregas o guías vigentes. Anula la guía antes de corregir; las entregas registradas son inmutables.');
       const cambiaDeuda =
         (dto.cantidad_jabas !== undefined &&
           dto.cantidad_jabas !== detalle.cantidad_jabas) ||
@@ -278,6 +286,7 @@ export class DetalleCargaService {
       return tx.detalle_carga.update({
         where: { id_detalle_carga: id },
         data: {
+          orden_carga: dto.orden_carga,
           id_cliente_emisor: dto.id_cliente_emisor,
           id_fruta: dto.id_fruta,
           id_variedad: dto.id_variedad,
@@ -298,7 +307,7 @@ export class DetalleCargaService {
   }
 
   async remove(id: number) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.scoped.$transaction(async (tx) => {
       const detalle = await this.editableDetalle(tx, id);
       if (detalle.requiere_retorno_jabas) {
         const deuda = await tx.jabas_por_pagar.findFirst({
@@ -341,7 +350,7 @@ export class DetalleCargaService {
    */
   async findCalidadesByDetalle(detalleId: number) {
     await this.findOne(detalleId);
-    return this.prisma.detalle_carga_calidades.findMany({
+    return this.prisma.scoped.detalle_carga_calidades.findMany({
       where: { id_detalle_carga: detalleId },
       include: { calidades: true },
     });
@@ -352,7 +361,7 @@ export class DetalleCargaService {
    * Verifica que la calidad exista y que no esté ya asociada.
    */
   async addCalidad(detalleId: number, dto: CreateDetalleCalidadDto) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.scoped.$transaction(async (tx) => {
       const referencia = await tx.detalle_carga.findUnique({
         where: { id_detalle_carga: detalleId },
       });
@@ -378,7 +387,7 @@ export class DetalleCargaService {
         where: { id_operacion: detalle.id_operacion },
         select: { estado: true },
       });
-      if (!operacion || !cargaEditable(operacion.estado)) {
+      if (!operacion || !operacionAbierta(operacion.estado)) {
         throw new BadRequestException(
           'No se pueden modificar calidades de una operación en tránsito o cancelada',
         );
@@ -442,7 +451,7 @@ export class DetalleCargaService {
    * Actualiza la cantidad y/o precio unitario de una calidad asociada.
    */
   async updateCalidad(calidadId: number, dto: UpdateDetalleCalidadDto) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.scoped.$transaction(async (tx) => {
       const calidad = await tx.detalle_carga_calidades.findUnique({
         where: { id_detalle_carga_calidad: calidadId },
       });
@@ -451,14 +460,11 @@ export class DetalleCargaService {
         tx,
         Number(calidad.id_detalle_carga),
       );
-      if (
-        await tx.items_reparto_detalle.count({
-          where: { id_detalle_carga_calidad: calidadId },
-        })
-      )
-        throw new BadRequestException(
-          'Quita primero el destino asignado a esta calidad para poder modificarla.',
-        );
+      const asignaciones = await tx.items_reparto_detalle.findMany({ where: { id_detalle_carga_calidad: calidadId }, include: { items_reparto: { include: { entregas: true, guias_operativas: true } } } });
+      const asignado = asignaciones.reduce((sum, a) => sum + a.cantidad, 0);
+      if (dto.cantidad !== undefined && dto.cantidad < asignado) throw new BadRequestException('Reajusta primero las asignaciones: la calidad no puede quedar por debajo de lo asignado.');
+      if (dto.id_calidad !== undefined && BigInt(dto.id_calidad) !== calidad.id_calidad && asignado > 0) throw new BadRequestException('La calidad ya está asignada. Reajusta el desglose antes de cambiar su identidad.');
+      if (asignaciones.some((a) => a.items_reparto.entregas.length || a.items_reparto.guias_operativas.some((g) => !['anulada','reemplazada'].includes(g.estado || '')))) throw new BadRequestException('La calidad está documentada o entregada. Anula la guía antes de corregir.');
       const otras = detalle.detalle_carga_calidades
         .filter(
           (c) =>
@@ -481,14 +487,14 @@ export class DetalleCargaService {
         throw new BadRequestException('El precio no es válido.');
       return tx.detalle_carga_calidades.update({
         where: { id_detalle_carga_calidad: calidadId },
-        data: { cantidad: dto.cantidad, precio_unitario: dto.precio_unitario },
+        data: { id_calidad: dto.id_calidad, cantidad: dto.cantidad, precio_unitario: dto.precio_unitario },
         include: { calidades: true },
       });
     });
   }
 
   async removeCalidad(calidadId: number) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.scoped.$transaction(async (tx) => {
       const calidad = await tx.detalle_carga_calidades.findUnique({
         where: { id_detalle_carga_calidad: calidadId },
       });
@@ -518,7 +524,7 @@ export class DetalleCargaService {
     const { id_cliente_emisor, id_fruta, id_variedad, id_tipo_jaba } = dto;
 
     if (id_cliente_emisor) {
-      const exists = await this.prisma.clientes.findUnique({
+      const exists = await this.prisma.scoped.clientes.findUnique({
         where: { id_cliente: id_cliente_emisor },
       });
       if (!exists)
@@ -527,14 +533,14 @@ export class DetalleCargaService {
         );
     }
     if (id_fruta) {
-      const exists = await this.prisma.frutas.findUnique({
+      const exists = await this.prisma.scoped.frutas.findUnique({
         where: { id_fruta },
       });
       if (!exists)
         throw new BadRequestException(`Fruta con ID ${id_fruta} no existe`);
     }
     if (id_variedad) {
-      const exists = await this.prisma.variedades.findUnique({
+      const exists = await this.prisma.scoped.variedades.findUnique({
         where: { id_variedad },
       });
       if (!exists)
@@ -543,7 +549,7 @@ export class DetalleCargaService {
         );
     }
     if (id_tipo_jaba) {
-      const exists = await this.prisma.tipos_jaba.findUnique({
+      const exists = await this.prisma.scoped.tipos_jaba.findUnique({
         where: { id_tipo_jaba },
       });
       if (!exists)

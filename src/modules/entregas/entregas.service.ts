@@ -64,10 +64,10 @@ export class EntregasService {
   // ==================== CRUD ====================
   async create(
     createDto: EntregaCreateDto,
-    empresaId: number = 1,
+    empresaId: number,
     usuarioId?: number,
   ) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.scoped.$transaction(async (tx) => {
       const referencia = await tx.items_reparto.findUnique({
         where: { id_item_reparto: createDto.id_item_reparto },
         select: { detalle_carga: { select: { id_operacion: true } } },
@@ -80,6 +80,7 @@ export class EntregasService {
         where: { id_item_reparto: createDto.id_item_reparto },
         include: {
           entregas: true,
+          resoluciones_reparto: true,
           guias_operativas: true,
           detalle_carga: {
             include: { operaciones_carga: true, detalle_carga_calidades: true },
@@ -90,13 +91,7 @@ export class EntregasService {
         throw new NotFoundException('Destino de entrega no encontrado.');
       const detalle = item.detalle_carga;
       const operacion = detalle.operaciones_carga;
-      if (
-        cargaEditable(operacion.estado) ||
-        operacionCancelada(operacion.estado)
-      )
-        throw new BadRequestException(
-          'Primero completa la carga, sus calidades y destinos, y confirma la carga.',
-        );
+      if (operacion.estado !== 'repartiendo') throw new BadRequestException('Inicia el reparto antes de registrar una entrega.');
       const recibidas = item.entregas
         .filter((e) => e.estado_entrega !== 'pendiente')
         .reduce((sum, e) => sum + e.cantidad_entregada, 0);
@@ -104,7 +99,7 @@ export class EntregasService {
         createDto.cantidad_entregada,
         createDto.cantidad_rechazada ?? 0,
         createDto.estado_entrega,
-        item.cantidad_asignada - recibidas,
+        item.cantidad_asignada - recibidas - item.resoluciones_reparto.reduce((sum, r) => sum + r.cantidad, 0),
         createDto.nombre_recibe,
       );
       if (
@@ -147,24 +142,13 @@ export class EntregasService {
         );
       if (guia && (guia.estado === 'anulada' || guia.estado === 'reemplazada'))
         throw new BadRequestException('La guía está anulada o reemplazada.');
-      if (!guia)
-        guia = await tx.guias_operativas.create({
-          data: {
-            id_empresa: item.id_empresa,
-            id_item_reparto: item.id_item_reparto,
-            id_puesto: item.id_puesto,
-            numero_guia:
-              'G-' +
-              operacion.id_operacion +
-              '-I' +
-              item.id_item_reparto +
-              '-V' +
-              (item.guias_operativas.length + 1),
-            fecha_emision: fecha,
-            id_repartidor: operacion.id_repartidor_asignado,
-            estado: 'emitida',
-          },
-        });
+      if (!guia) throw new BadRequestException('Emite la guía del destino antes de entregar.');
+      const cobertura = guia.cobertura as { id_item_reparto?: string; cantidad?: number } | null;
+      if (!cobertura || String(cobertura.id_item_reparto) !== String(item.id_item_reparto) || !cobertura.cantidad)
+        throw new BadRequestException('La guía no tiene cobertura histórica verificada. Requiere revisión.');
+      const recibidoGuia = item.entregas.filter((e) => e.id_guia === guia.id_guia && e.estado_entrega !== 'pendiente').reduce((sum, e) => sum + e.cantidad_entregada, 0);
+      if (createDto.cantidad_entregada + (createDto.cantidad_rechazada || 0) > cobertura.cantidad - recibidoGuia)
+        throw new BadRequestException('La entrega excede la cobertura pendiente de la guía.');
       const entrega = await tx.entregas.create({
         data: {
           id_empresa: item.id_empresa,
@@ -211,18 +195,6 @@ export class EntregasService {
         empresaId,
         usuarioId,
       );
-      const detalles = await tx.detalle_carga.findMany({
-        where: { id_operacion: operacion.id_operacion },
-        include: {
-          detalle_carga_calidades: true,
-          items_reparto: { include: { entregas: true } },
-        },
-      });
-      if (resumenFlujo(detalles).entregasCompletas)
-        await tx.operaciones_carga.update({
-          where: { id_operacion: operacion.id_operacion },
-          data: { estado: 'completado' },
-        });
       return entrega;
     });
   }
@@ -242,7 +214,7 @@ export class EntregasService {
       end.setDate(end.getDate() + 1);
       where.fecha_entrega = { gte: start, lt: end };
     }
-    return this.prisma.entregas.findMany({
+    return this.prisma.scoped.entregas.findMany({
       where,
       include: {
         guias_operativas: true,
@@ -254,7 +226,7 @@ export class EntregasService {
   }
 
   async findOne(id: number) {
-    const entrega = await this.prisma.entregas.findUnique({
+    const entrega = await this.prisma.scoped.entregas.findUnique({
       where: { id_entrega: id },
       include: {
         guias_operativas: true,
@@ -268,7 +240,14 @@ export class EntregasService {
   }
 
   async update(id: number, updateDto: UpdateEntregaDto) {
-    const entrega = await this.findOne(id);
+    return this.prisma.scoped.$transaction(async (tx) => {
+    const ref = await tx.entregas.findUnique({ where: { id_entrega: id }, include: { items_reparto: { include: { detalle_carga: true } } } });
+    if (!ref) throw new NotFoundException('Entrega no encontrada.');
+    await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${ref.items_reparto.detalle_carga.id_operacion} FOR UPDATE`;
+
+    const entrega = await tx.entregas.findUniqueOrThrow({ where: { id_entrega: id }, include: { items_reparto: true } });
+    const op = await tx.operaciones_carga.findUniqueOrThrow({ where: { id_operacion: (await tx.detalle_carga.findUniqueOrThrow({ where: { id_detalle_carga: entrega.items_reparto.id_detalle_carga } })).id_operacion } });
+    if (op.estado !== 'repartiendo') throw new BadRequestException('La operación no permite editar entregas.');
     const protectedFields = [
       'id_guia',
       'id_item_reparto',
@@ -291,7 +270,7 @@ export class EntregasService {
       !updateDto.nombre_recibe?.trim()
     )
       throw new BadRequestException('Escribe el nombre de quien recibe.');
-    return this.prisma.entregas.update({
+    return tx.entregas.update({
       where: { id_entrega: id },
       data: {
         nombre_recibe: updateDto.nombre_recibe?.trim(),
@@ -299,6 +278,7 @@ export class EntregasService {
         firma_recibido: updateDto.firma_recibido,
       },
       include: { guias_operativas: true, items_reparto: true },
+    });
     });
   }
 
@@ -318,31 +298,28 @@ export class EntregasService {
       throw new BadRequestException('Escribe el nombre de quien recibe.');
     if (entrega.cantidad_entregada <= 0)
       throw new BadRequestException('Primero registra las jabas recibidas.');
-    return this.prisma.entregas.update({
-      where: { id_entrega: id },
-      data: { firma_recibido: true, nombre_recibe: nombre },
-    });
+    return this.update(id, { firma_recibido: true, nombre_recibe: nombre });
   }
 
   // Endpoints anidados
   async findByGuia(guiaId: number) {
-    const guia = await this.prisma.guias_operativas.findUnique({
+    const guia = await this.prisma.scoped.guias_operativas.findUnique({
       where: { id_guia: guiaId },
     });
     if (!guia) throw new NotFoundException(`Guía ID ${guiaId} no existe`);
-    return this.prisma.entregas.findMany({
+    return this.prisma.scoped.entregas.findMany({
       where: { id_guia: guiaId },
       include: { items_reparto: true, usuarios: true },
     });
   }
 
   async findByItemReparto(itemRepartoId: number) {
-    const item = await this.prisma.items_reparto.findUnique({
+    const item = await this.prisma.scoped.items_reparto.findUnique({
       where: { id_item_reparto: itemRepartoId },
     });
     if (!item)
       throw new NotFoundException(`Item reparto ID ${itemRepartoId} no existe`);
-    return this.prisma.entregas.findMany({
+    return this.prisma.scoped.entregas.findMany({
       where: { id_item_reparto: itemRepartoId },
       include: { guias_operativas: true, usuarios: true },
     });
@@ -350,14 +327,14 @@ export class EntregasService {
 
   private async validateRelations(dto: any) {
     if (dto.id_guia) {
-      const exists = await this.prisma.guias_operativas.findUnique({
+      const exists = await this.prisma.scoped.guias_operativas.findUnique({
         where: { id_guia: dto.id_guia },
       });
       if (!exists)
         throw new BadRequestException(`Guía ID ${dto.id_guia} no existe`);
     }
     if (dto.id_item_reparto) {
-      const exists = await this.prisma.items_reparto.findUnique({
+      const exists = await this.prisma.scoped.items_reparto.findUnique({
         where: { id_item_reparto: dto.id_item_reparto },
       });
       if (!exists)
@@ -366,7 +343,7 @@ export class EntregasService {
         );
     }
     if (dto.id_entregador) {
-      const exists = await this.prisma.usuarios.findUnique({
+      const exists = await this.prisma.scoped.usuarios.findUnique({
         where: { id_usuario: dto.id_entregador },
       });
       if (!exists)

@@ -1,3 +1,6 @@
+import { validarTransicion } from './estados-operacion';
+import { resumenReparto } from './resumen-reparto';
+import { exigirSupervisor } from '../../common/security/request-context';
 // operaciones-carga.service.ts
 import {
   Injectable,
@@ -30,10 +33,12 @@ export class OperacionesCargaService {
     // Verificar que todas las relaciones (sede, camión, usuarios) existan en la base de datos
     await this.validateRelations(createDto);
 
-    return this.prisma.operaciones_carga.create({
+    return this.prisma.scoped.operaciones_carga.create({
       data: {
-        id_empresa: 1, // TODO: Reemplazar con el id_empresa del token JWT del usuario autenticado
+        id_empresa: this.prisma.empresaId, // TODO: Reemplazar con el id_empresa del token JWT del usuario autenticado
         id_sede_origen: createDto.id_sede_origen,
+        id_ubigeo_origen: createDto.id_ubigeo_origen,
+        id_ubigeo_destino: createDto.id_ubigeo_destino,
         id_sede_destino: createDto.id_sede_destino,
         id_camion: createDto.id_camion,
         id_encargado_carga: createDto.id_encargado_carga,
@@ -68,7 +73,7 @@ export class OperacionesCargaService {
       where.fecha_carga = { gte: startDate, lt: endDate };
     }
 
-    return this.prisma.operaciones_carga.findMany({
+    return this.prisma.scoped.operaciones_carga.findMany({
       where,
       orderBy: { fecha_carga: 'desc' }, // Más recientes primero
       include: {
@@ -82,7 +87,7 @@ export class OperacionesCargaService {
   }
 
   async findOne(id: number) {
-    const operacion = await this.prisma.operaciones_carga.findUnique({
+    const operacion = await this.prisma.scoped.operaciones_carga.findUnique({
       where: { id_operacion: id },
       include: {
         camiones: true,
@@ -91,6 +96,7 @@ export class OperacionesCargaService {
         usuarios_operaciones_carga_id_encargado_cargaTousuarios: true,
         usuarios_operaciones_carga_id_repartidor_asignadoTousuarios: true,
         detalle_carga: {
+          orderBy: { orden_carga: 'asc' },
           include: {
             detalle_carga_calidades: { include: { calidades: true } },
             items_reparto: {
@@ -98,6 +104,8 @@ export class OperacionesCargaService {
                 clientes: true,
                 puestos: true,
                 entregas: true,
+                items_reparto_detalle: true,
+                resoluciones_reparto: true,
                 guias_operativas: true,
               },
             },
@@ -114,7 +122,7 @@ export class OperacionesCargaService {
     if (!operacion) {
       throw new NotFoundException(`Operación con ID ${id} no encontrada`);
     }
-    return { ...operacion, flujo: resumenFlujo(operacion.detalle_carga) };
+    return { ...operacion, flujo: resumenFlujo(operacion.detalle_carga), resumen: resumenReparto(operacion.detalle_carga) };
   }
 
   async update(id: number, updateDto: UpdateOperacionCargaDto) {
@@ -131,14 +139,16 @@ export class OperacionesCargaService {
 
     if (updateDto.estado && updateDto.estado !== operacion.estado)
       throw new BadRequestException(
-        'Usa la acción de confirmar carga o cancelar para cambiar de etapa.',
+        'Usa la acción de estado para cambiar de etapa.',
       );
     await this.validateRelations(updateDto, id);
 
-    return this.prisma.operaciones_carga.update({
-      where: { id_operacion: id },
+    return this.prisma.scoped.operaciones_carga.update({
+      where: { id_operacion: id, estado: operacion.estado },
       data: {
         id_sede_origen: updateDto.id_sede_origen,
+        id_ubigeo_origen: updateDto.id_ubigeo_origen,
+        id_ubigeo_destino: updateDto.id_ubigeo_destino,
         id_sede_destino: updateDto.id_sede_destino,
         id_camion: updateDto.id_camion,
         id_encargado_carga: updateDto.id_encargado_carga,
@@ -149,7 +159,7 @@ export class OperacionesCargaService {
         hora_carga: updateDto.hora_carga
           ? new Date(`1970-01-01T${updateDto.hora_carga}`)
           : undefined,
-        estado: updateDto.estado,
+
         observaciones: updateDto.observaciones,
       },
       include: {
@@ -162,56 +172,54 @@ export class OperacionesCargaService {
     });
   }
 
-  async remove(id: number) {
-    const operacion = await this.findOne(id);
-    if (!cargaEditable(operacion.estado)) {
-      throw new BadRequestException(
-        'No se puede cancelar una operación en tránsito',
-      );
-    }
-    return this.prisma.operaciones_carga.update({
-      where: { id_operacion: id },
-      data: { estado: 'cancelado' },
-    });
-  }
-
   async changeState(id: number, newState: string) {
-    if (newState === 'repartiendo' || newState === 'en_transito')
-      return this.finalizar(id);
-    if (newState === 'cancelado' || newState === 'cancelada')
-      return this.remove(id);
-    throw new BadRequestException(
-      'Usa los pasos de la operación para avanzar. El estado se calcula a partir de la carga y sus entregas.',
-    );
+    if (newState === 'en_transito') return this.finalizar(id);
+    return this.prisma.scoped.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${BigInt(id)} AND id_empresa = ${this.prisma.empresaId} FOR UPDATE`;
+      const op = await tx.operaciones_carga.findUnique({ where: { id_operacion: id }, include: {
+        detalle_carga: { include: { detalle_carga_calidades: true, items_reparto: { include: { items_reparto_detalle: true, entregas: true, guias_operativas: true, resoluciones_reparto: true } } } },
+      } });
+      if (!op) throw new NotFoundException('Operación no encontrada.');
+      validarTransicion(op.estado, newState);
+      if (newState === 'en_curso' && !op.detalle_carga.length) throw new BadRequestException('Agrega un producto para iniciar la carga.');
+      const resumen = resumenReparto(op.detalle_carga);
+      if (newState === 'repartiendo') {
+        if (!resumen.preparada) throw new BadRequestException('Completa la clasificación y asignación antes de iniciar el reparto.');
+        if (op.detalle_carga.some((d) => d.items_reparto.some((i) => !i.guias_operativas.some((g) => !['anulada','reemplazada'].includes(g.estado || '') && g.cobertura))))
+          throw new BadRequestException('Emite las guías de todos los destinos antes de iniciar el reparto.');
+      }
+      if (newState === 'completado') {
+        exigirSupervisor();
+        if (!resumen.conciliada) throw new BadRequestException({ message: 'La carga no está conciliada.', resumen });
+      }
+      return tx.operaciones_carga.update({ where: { id_operacion: id }, data: { estado: newState } });
+    });
   }
 
   async finalizar(operacionId: number) {
-    return this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${BigInt(operacionId)} FOR UPDATE`;
-      const operacion = await tx.operaciones_carga.findUnique({
-        where: { id_operacion: operacionId },
-        include: {
-          detalle_carga: {
-            include: {
-              detalle_carga_calidades: true,
-              items_reparto: { include: { entregas: true } },
-            },
-          },
-        },
-      });
-      if (!operacion) throw new NotFoundException('Operación no encontrada.');
-      if (!cargaEditable(operacion.estado))
-        throw new BadRequestException(
-          'Esta carga ya fue confirmada o está cancelada.',
-        );
-      const flujo = resumenFlujo(operacion.detalle_carga);
-      if (!flujo.listaParaEntregar)
-        throw new BadRequestException(flujo.pendientes.join(' '));
-      return tx.operaciones_carga.update({
-        where: { id_operacion: operacionId },
-        data: { estado: 'repartiendo' },
-      });
+    return this.prisma.scoped.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${BigInt(operacionId)} AND id_empresa = ${this.prisma.empresaId} FOR UPDATE`;
+      const op = await tx.operaciones_carga.findUnique({ where: { id_operacion: operacionId }, include: {
+        detalle_carga: { include: { detalle_carga_calidades: true, items_reparto: { include: { items_reparto_detalle: true, entregas: true } } } },
+      } });
+      if (!op) throw new NotFoundException('Operación no encontrada.');
+      validarTransicion(op.estado, 'en_transito');
+      const resumen = resumenReparto(op.detalle_carga);
+      if (!resumen.preparada) throw new BadRequestException({ message: 'Completa las calidades y los destinos de toda la carga.', resumen });
+      return tx.operaciones_carga.update({ where: { id_operacion: operacionId }, data: { estado: 'en_transito' } });
     });
+  }
+
+  async resumenRepartos(query: QueryOperacionesCargaDto) {
+    const where = { estado: query.estado, ...(query.fecha ? { fecha_carga: new Date(query.fecha) } : {}) };
+    const page = query.page || 1, limit = query.limit || 20;
+    const [total, operaciones] = await this.prisma.scoped.$transaction([
+      this.prisma.scoped.operaciones_carga.count({ where }),
+      this.prisma.scoped.operaciones_carga.findMany({ where, skip: (page - 1) * limit, take: limit, orderBy: [{ fecha_carga: 'desc' }, { id_operacion: 'desc' }], include: {
+        camiones: true, detalle_carga: { include: { detalle_carga_calidades: true, items_reparto: { include: { items_reparto_detalle: true, entregas: true, resoluciones_reparto: true } } } },
+      } }),
+    ]);
+    return { data: operaciones.map(({ detalle_carga, ...op }) => ({ ...op, resumen: resumenReparto(detalle_carga) })), total, page, limit };
   }
 
   private async validateRelations(dto: any, excludeId?: number) {
@@ -224,7 +232,7 @@ export class OperacionesCargaService {
     } = dto;
 
     if (id_sede_origen) {
-      const exists = await this.prisma.sedes.findUnique({
+      const exists = await this.prisma.scoped.sedes.findUnique({
         where: { id_sede: id_sede_origen },
       });
       if (!exists)
@@ -233,7 +241,7 @@ export class OperacionesCargaService {
         );
     }
     if (id_sede_destino) {
-      const exists = await this.prisma.sedes.findUnique({
+      const exists = await this.prisma.scoped.sedes.findUnique({
         where: { id_sede: id_sede_destino },
       });
       if (!exists)
@@ -242,14 +250,14 @@ export class OperacionesCargaService {
         );
     }
     if (id_camion) {
-      const exists = await this.prisma.camiones.findUnique({
+      const exists = await this.prisma.scoped.camiones.findUnique({
         where: { id_camion },
       });
       if (!exists)
         throw new BadRequestException(`Camión con ID ${id_camion} no existe`);
     }
     if (id_encargado_carga) {
-      const exists = await this.prisma.usuarios.findUnique({
+      const exists = await this.prisma.scoped.usuarios.findUnique({
         where: { id_usuario: id_encargado_carga },
       });
       if (!exists)
@@ -258,7 +266,7 @@ export class OperacionesCargaService {
         );
     }
     if (id_repartidor_asignado) {
-      const exists = await this.prisma.usuarios.findUnique({
+      const exists = await this.prisma.scoped.usuarios.findUnique({
         where: { id_usuario: id_repartidor_asignado },
       });
       if (!exists)
@@ -270,11 +278,11 @@ export class OperacionesCargaService {
 
   async findDetallesRepartoPendientes(operacionId: number) {
     // 1. Obtener todos los detalles de reparto con calidades e items asociados
-    const detalles = await this.prisma.detalle_carga.findMany({
+    const detalles = await this.prisma.scoped.detalle_carga.findMany({
       where: {
         id_operacion: operacionId,
         es_reparto: true,
-        operaciones_carga: { estado: { in: ['pendiente', 'en_curso'] } },
+        operaciones_carga: { estado: { in: ['pendiente', 'en_curso', 'en_transito', 'repartiendo'] } },
         detalle_carga_calidades: { some: {} }, // al menos una calidad
       },
       include: {
@@ -325,11 +333,11 @@ export class OperacionesCargaService {
 
   async findAllDetallesRepartoPendientes() {
     // Obtener todos los detalles de reparto con calidades (sin filtrar por items_reparto)
-    const detalles = await this.prisma.detalle_carga.findMany({
+    const detalles = await this.prisma.scoped.detalle_carga.findMany({
       where: {
-        id_empresa: 1,
+        id_empresa: this.prisma.empresaId,
         es_reparto: true,
-        operaciones_carga: { estado: { in: ['pendiente', 'en_curso'] } },
+        operaciones_carga: { estado: { in: ['pendiente', 'en_curso', 'en_transito', 'repartiendo'] } },
         detalle_carga_calidades: { some: {} },
       },
       include: {
@@ -406,62 +414,6 @@ export class OperacionesCargaService {
   }
 
   async generarGuias(operacionId: number) {
-    return this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${BigInt(operacionId)} FOR UPDATE`;
-      const operacion = await tx.operaciones_carga.findUnique({
-        where: { id_operacion: operacionId },
-      });
-      if (!operacion) throw new NotFoundException('Operación no encontrada.');
-      if (
-        cargaEditable(operacion.estado) ||
-        operacionCancelada(operacion.estado)
-      )
-        throw new BadRequestException('Primero completa y confirma la carga.');
-      const items = await tx.items_reparto.findMany({
-        where: { detalle_carga: { id_operacion: operacionId } },
-        include: { guias_operativas: true, entregas: true },
-      });
-      if (
-        !items.length ||
-        items.some(
-          (item) =>
-            !item.entregas.some((e) => e.estado_entrega !== 'pendiente'),
-        )
-      )
-        throw new BadRequestException(
-          'Registra las entregas antes de consultar las guías.',
-        );
-      // Una guía corresponde a un destino concreto. No se mezclan clientes por puesto.
-      const guias: (typeof items)[number]['guias_operativas'] = [];
-      for (const item of items) {
-        const existente = item.guias_operativas.find(
-          (g) => g.estado !== 'anulada' && g.estado !== 'reemplazada',
-        );
-        if (existente) {
-          guias.push(existente);
-          continue;
-        }
-        guias.push(
-          await tx.guias_operativas.create({
-            data: {
-              id_empresa: operacion.id_empresa,
-              id_item_reparto: item.id_item_reparto,
-              id_puesto: item.id_puesto,
-              numero_guia:
-                'G-' +
-                operacionId +
-                '-I' +
-                item.id_item_reparto +
-                '-V' +
-                (item.guias_operativas.length + 1),
-              fecha_emision: new Date(),
-              id_repartidor: operacion.id_repartidor_asignado,
-              estado: 'emitida',
-            },
-          }),
-        );
-      }
-      return guias;
-    });
+    return this.guiasService.emitirOperacion(operacionId);
   }
 }

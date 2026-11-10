@@ -1,3 +1,4 @@
+import { ResolucionRepartoDto } from './dto/resolucion-reparto.dto';
 import {
   Controller,
   Get,
@@ -24,6 +25,12 @@ export class ItemsRepartoController {
   constructor(private readonly service: ItemsRepartoService) { }
 
   // ==================== ÍTEMS PRINCIPALES ====================
+  @Put(':id/asignacion')
+  reajustar(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateItemRepartoConDetallesDto) { return this.service.reajustar(id, dto); }
+
+  @Post(':id/resoluciones')
+  resolver(@Param('id', ParseIntPipe) id: number, @Body() dto: ResolucionRepartoDto) { return this.service.resolver(id, dto); }
+
   @Post()
   create(@Body() dto: CreateItemRepartoDto) {
     return this.service.create(dto);
@@ -37,6 +44,11 @@ export class ItemsRepartoController {
   @Get()
   findAll(@Query() query: QueryItemsRepartoDto) {
     return this.service.findAll(query);
+  }
+
+  @Get('detalle')
+  findAllDetalles() {
+    return this.service.findAllDetalles();
   }
 
   @Get(':id')
@@ -66,11 +78,6 @@ export class ItemsRepartoController {
   createMultipleFromCalidades(@Body() dto: CreateItemsRepartoMultipleDto) {
     return this.service.createMultipleFromCalidades(dto);
   }
-  @Get('detalle')
-  findAllDetalles() {
-    return this.service.findAllDetalles();
-  }
-
   @Get(':id/detalle')
   findDetallesByItem(@Param('id', ParseIntPipe) id: number) {
     return this.service.findAllDetalles(id);

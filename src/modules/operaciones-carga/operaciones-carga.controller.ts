@@ -28,6 +28,12 @@ export class OperacionesCargaController {
   // RUTAS FIJAS (sin :id) - van primero
   // ============================================
 
+  @Get('resumen-repartos')
+  resumenRepartos(@Query() query: QueryOperacionesCargaDto) { return this.service.resumenRepartos(query); }
+
+  @Get(':id/reparto')
+  reparto(@Param('id', ParseIntPipe) id: number) { return this.service.findOne(id); }
+
   @Get('detalles-pendientes')
   async findAllDetallesRepartoPendientes() {
     return this.service.findAllDetallesRepartoPendientes();
@@ -69,11 +75,6 @@ export class OperacionesCargaController {
     @Body() updateDto: UpdateOperacionCargaDto,
   ) {
     return this.service.update(id, updateDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.service.remove(id);
   }
 
   @Patch(':id/estado')

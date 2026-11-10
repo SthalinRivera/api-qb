@@ -25,7 +25,7 @@ export class LogsActividadService {
       }
     }
 
-    return this.prisma.logs_actividad.findMany({
+    return this.prisma.scoped.logs_actividad.findMany({
       where,
       include: {
         usuarios: {
@@ -38,7 +38,7 @@ export class LogsActividadService {
   }
 
   async findOne(id: number) {
-    return this.prisma.logs_actividad.findUnique({
+    return this.prisma.scoped.logs_actividad.findUnique({
       where: { id_log: id },
       include: {
         usuarios: {
@@ -60,7 +60,7 @@ export class LogsActividadService {
     datos_anteriores?: any;
     datos_nuevos?: any;
   }) {
-    return this.prisma.logs_actividad.create({
+    return this.prisma.scoped.logs_actividad.create({
       data: {
         id_empresa: data.id_empresa || null,
         id_usuario: data.id_usuario || null,
@@ -74,7 +74,7 @@ export class LogsActividadService {
   }
 
   async getTables() {
-    const result = await this.prisma.logs_actividad.groupBy({
+    const result = await this.prisma.scoped.logs_actividad.groupBy({
       by: ['tabla_afectada'],
       _count: { id_log: true },
       orderBy: { _count: { id_log: 'desc' } },
@@ -83,12 +83,12 @@ export class LogsActividadService {
   }
 
   async getStats(empresaId: number) {
-    const total = await this.prisma.logs_actividad.count({
+    const total = await this.prisma.scoped.logs_actividad.count({
       where: { id_empresa: empresaId },
     });
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
-    const hoyCount = await this.prisma.logs_actividad.count({
+    const hoyCount = await this.prisma.scoped.logs_actividad.count({
       where: {
         id_empresa: empresaId,
         created_at: { gte: hoy },

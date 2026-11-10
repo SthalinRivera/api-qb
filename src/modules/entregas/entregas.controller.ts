@@ -12,7 +12,7 @@ export class EntregasController {
 
   @Post()
   create(@Body() dto: CreateEntregaDto, @Req() req: any) {
-    return this.service.create(dto, req.user?.id_empresa ?? 1, req.user?.id);
+    return this.service.create(dto, Number(req.actor.empresaId), Number(req.actor.usuarioId));
   }
 
   @Get()

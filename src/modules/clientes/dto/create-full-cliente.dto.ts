@@ -1,8 +1,10 @@
+import { Matches } from 'class-validator';
 // src/modules/clientes/dto/create-full-cliente.dto.ts
 import { IsString, IsNotEmpty, IsOptional, IsNumber, IsArray, ValidateNested, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class SedeAsignacionDto {
+    @IsOptional() @IsString() @Matches(/^\d{6}$/) id_ubigeo?: string;
     @IsNumber()
     id_sede!: number;
 

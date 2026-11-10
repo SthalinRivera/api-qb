@@ -60,7 +60,7 @@ export class JabasService {
 
     // Filtrado por empresa ya aplicado arriba. No existe id_cliente en usuarios.
 
-    return this.prisma.jabas_por_pagar.findMany({
+    return this.prisma.scoped.jabas_por_pagar.findMany({
       where,
       include: {
         clientes: true,
@@ -92,7 +92,7 @@ export class JabasService {
   async obtenerJabaPagar(id: number, empresaId: number, usuarioId?: number, roles?: string[]) {
     const where: any = { id_jaba_pagar: id, id_empresa: empresaId };
 
-    const registro = await this.prisma.jabas_por_pagar.findFirst({
+    const registro = await this.prisma.scoped.jabas_por_pagar.findFirst({
       where,
       include: {
         clientes: true,
@@ -146,7 +146,7 @@ export class JabasService {
 
     // Filtrado por empresa ya aplicado arriba. No existe id_cliente en usuarios.
 
-    return this.prisma.jabas_por_cobrar.findMany({
+    return this.prisma.scoped.jabas_por_cobrar.findMany({
       where,
       include: {
         tipos_jaba: true,
@@ -173,7 +173,7 @@ export class JabasService {
   async obtenerJabaCobrar(id: number, empresaId: number, usuarioId?: number, roles?: string[]) {
     const where: any = { id_jaba_cobrar: id, id_empresa: empresaId };
 
-    const registro = await this.prisma.jabas_por_cobrar.findFirst({
+    const registro = await this.prisma.scoped.jabas_por_cobrar.findFirst({
       where,
       include: {
         tipos_jaba: true,
@@ -206,10 +206,10 @@ export class JabasService {
       throw new BadRequestException('No tiene permisos para realizar esta acción');
     }
 
-    const registro = await this.prisma.jabas_por_cobrar.findFirst({ where: { id_jaba_cobrar: id, id_empresa: empresaId } });
+    const registro = await this.prisma.scoped.jabas_por_cobrar.findFirst({ where: { id_jaba_cobrar: id, id_empresa: empresaId } });
     if (!registro) throw new NotFoundException('Registro no encontrado');
 
-    const actualizado = await this.prisma.jabas_por_cobrar.update({
+    const actualizado = await this.prisma.scoped.jabas_por_cobrar.update({
       where: { id_jaba_cobrar: id },
       data: { estado },
     });
@@ -224,10 +224,10 @@ export class JabasService {
       throw new BadRequestException('No tiene permisos para realizar esta acción');
     }
 
-    const registro = await this.prisma.jabas_por_pagar.findFirst({ where: { id_jaba_pagar: id, id_empresa: empresaId } });
+    const registro = await this.prisma.scoped.jabas_por_pagar.findFirst({ where: { id_jaba_pagar: id, id_empresa: empresaId } });
     if (!registro) throw new NotFoundException('Registro no encontrado');
 
-    const actualizado = await this.prisma.jabas_por_pagar.update({
+    const actualizado = await this.prisma.scoped.jabas_por_pagar.update({
       where: { id_jaba_pagar: id },
       data: { estado },
     });
@@ -245,7 +245,7 @@ export class JabasService {
     const { id_jaba_cobrar, cantidad, id_usuario_responsable, fecha_recuperacion, ...rest } = data;
     const fechaRecuperacion = this.parseFecha(fecha_recuperacion, 'fecha_recuperacion');
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.scoped.$transaction(async (tx) => {
       const jabaCobrar = await tx.jabas_por_cobrar.findFirst({
         where: { id_jaba_cobrar, id_empresa: empresaId },
       });
@@ -309,7 +309,7 @@ export class JabasService {
     const { id_jaba_pagar, cantidad, id_usuario_responsable, fecha_devolucion, ...rest } = data;
     const fechaDevolucion = this.parseFecha(fecha_devolucion, 'fecha_devolucion');
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.scoped.$transaction(async (tx) => {
       const jabaPagar = await tx.jabas_por_pagar.findFirst({
         where: { id_jaba_pagar, id_empresa: empresaId },
       });
@@ -365,12 +365,12 @@ export class JabasService {
   // ==================== MOVIMIENTOS HISTÓRICOS ====================
 
   async listarRecuperacionesPorJabaCobrar(idJabaCobrar: number, empresaId: number) {
-    const jaba = await this.prisma.jabas_por_cobrar.findFirst({
+    const jaba = await this.prisma.scoped.jabas_por_cobrar.findFirst({
       where: { id_jaba_cobrar: idJabaCobrar, id_empresa: empresaId },
     });
     if (!jaba) throw new NotFoundException('Jaba por cobrar no encontrada');
 
-    return this.prisma.recuperaciones_jabas.findMany({
+    return this.prisma.scoped.recuperaciones_jabas.findMany({
       where: { id_jaba_cobrar: idJabaCobrar },
       include: {
         usuarios: { select: { nombres: true, apellidos: true } },
@@ -380,12 +380,12 @@ export class JabasService {
   }
 
   async listarDevolucionesPorJabaPagar(idJabaPagar: number, empresaId: number) {
-    const jaba = await this.prisma.jabas_por_pagar.findFirst({
+    const jaba = await this.prisma.scoped.jabas_por_pagar.findFirst({
       where: { id_jaba_pagar: idJabaPagar, id_empresa: empresaId },
     });
     if (!jaba) throw new NotFoundException('Jaba por pagar no encontrada');
 
-    return this.prisma.devoluciones_jabas_emisor.findMany({
+    return this.prisma.scoped.devoluciones_jabas_emisor.findMany({
       where: { id_jaba_pagar: idJabaPagar },
       include: {
         usuarios: { select: { nombres: true, apellidos: true } },

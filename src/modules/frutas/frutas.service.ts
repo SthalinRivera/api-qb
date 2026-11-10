@@ -8,12 +8,12 @@ export class FrutasService {
   constructor(private readonly prisma: PrismaService) { }
 
   async create(createFrutaDto: CreateFrutaDto) {
-    const empresa = await this.prisma.empresas.findUnique({
+    const empresa = await this.prisma.scoped.empresas.findUnique({
       where: { id_empresa: BigInt(createFrutaDto.id_empresa) },
     });
     if (!empresa) throw new NotFoundException('Empresa no encontrada');
 
-    return this.prisma.frutas.create({
+    return this.prisma.scoped.frutas.create({
       data: {
         id_empresa: BigInt(createFrutaDto.id_empresa),
         nombre: createFrutaDto.nombre,
@@ -27,7 +27,7 @@ export class FrutasService {
   async findAll(estado?: boolean) {
     const where: any = {};
     if (estado !== undefined) where.estado = estado;
-    return this.prisma.frutas.findMany({
+    return this.prisma.scoped.frutas.findMany({
       where,
       include: { empresas: true, variedades: true },
       orderBy: { nombre: 'asc' },
@@ -35,7 +35,7 @@ export class FrutasService {
   }
 
   async findOne(id: number) {
-    const fruta = await this.prisma.frutas.findUnique({
+    const fruta = await this.prisma.scoped.frutas.findUnique({
       where: { id_fruta: BigInt(id) },
       include: { empresas: true, variedades: true },
     });
@@ -45,7 +45,7 @@ export class FrutasService {
 
   async update(id: number, updateFrutaDto: UpdateFrutaDto) {
     try {
-      const updated = await this.prisma.frutas.update({
+      const updated = await this.prisma.scoped.frutas.update({
         where: { id_fruta: BigInt(id) },
         data: {
           nombre: updateFrutaDto.nombre,

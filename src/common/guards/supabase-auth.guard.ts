@@ -21,6 +21,7 @@ export class SupabaseAuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
+    if (request.user?.id && request.actor) return true;
     const authorization = request.headers.authorization;
     const token = authorization?.match(/^Bearer\s+(\S+)$/i)?.[1];
 

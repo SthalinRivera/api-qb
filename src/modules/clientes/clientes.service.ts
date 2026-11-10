@@ -28,7 +28,7 @@ export class ClientesService {
       createClienteDto.nombres,
     );
     await this.ensureUniqueTelefono(createClienteDto.telefono);
-    return this.prisma.clientes.create({
+    return this.prisma.scoped.clientes.create({
       data: {
         id_empresa: BigInt(createClienteDto.id_empresa),
         nombres: createClienteDto.nombres,
@@ -47,7 +47,7 @@ export class ClientesService {
     await this.ensureUniqueClienteNombre(dto.id_empresa, dto.nombres);
     await this.ensureUniqueTelefono(dto.telefono);
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.scoped.$transaction(async (tx) => {
       // Crear cliente (ya validado)
       const cliente = await tx.clientes.create({
         data: {
@@ -70,6 +70,7 @@ export class ClientesService {
               id_sede: BigInt(s.id_sede),
               id_empresa: cliente.id_empresa,
               tipo_relacion: s.tipo_relacion,
+              id_ubigeo: s.id_ubigeo,
               estado: true,
             },
           });
@@ -113,7 +114,7 @@ export class ClientesService {
   }
 
   async updateFull(id: number, dto: UpdateFullClienteDto) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.scoped.$transaction(async (tx) => {
       // 1. Verificar que el cliente existe
       const clienteExistente = await tx.clientes.findUnique({
         where: { id_cliente: BigInt(id) },
@@ -156,43 +157,25 @@ export class ClientesService {
               id_sede: BigInt(s.id_sede),
               id_empresa: clienteExistente.id_empresa,
               tipo_relacion: s.tipo_relacion,
+              id_ubigeo: s.id_ubigeo,
               estado: true,
             },
           });
         }
       }
 
-      // 5. Reemplazar puestos (validando ocupación global)
       if (dto.puestos !== undefined) {
-        // Eliminar los puestos actuales
-        await tx.clientes_puestos.deleteMany({
-          where: { id_cliente: BigInt(id) },
-        });
-        // Validar y crear los nuevos
-        for (const p of dto.puestos) {
-          const ocupado = await tx.clientes_puestos.findFirst({
-            where: {
-              id_puesto: BigInt(p.id_puesto),
-              seccion: p.seccion ?? null,
-              fecha_fin: null,
-              id_cliente: { not: BigInt(id) }, // excluir al mismo cliente
-            },
-          });
-          if (ocupado) {
-            throw new ConflictException(
-              `El puesto ${p.id_puesto} en la sección ${p.seccion} ya está ocupado por otro cliente`
-            );
-          }
-          await tx.clientes_puestos.create({
-            data: {
-              id_cliente: BigInt(id),
-              id_puesto: BigInt(p.id_puesto),
-              id_empresa: clienteExistente.id_empresa,
-              seccion: p.seccion,
-              fecha_inicio: new Date(),
-              estado: true,
-            },
-          });
+        await tx.$queryRaw`SELECT id_cliente FROM clientes WHERE id_cliente = ${BigInt(id)} FOR UPDATE`;
+        const actuales = await tx.clientes_puestos.findMany({ where: { id_cliente: BigInt(id), estado: true, fecha_fin: null } });
+        const key = (p: { id_puesto: bigint | number; seccion?: string | null }) => `${p.id_puesto}:${p.seccion || ''}`;
+        const nuevos = new Set(dto.puestos.map(key));
+        if (nuevos.size !== dto.puestos.length) throw new ConflictException('Puestos duplicados en la solicitud.');
+        for (const anterior of actuales) if (!nuevos.has(key(anterior))) await tx.clientes_puestos.update({ where: { id_cliente_puesto: anterior.id_cliente_puesto }, data: { estado: false, fecha_fin: new Date() } });
+        for (const puesto of dto.puestos) {
+          if (actuales.some((actual) => key(actual) === key(puesto))) continue;
+          await tx.$queryRaw`SELECT id_puesto FROM puestos WHERE id_puesto = ${BigInt(puesto.id_puesto)} FOR UPDATE`;
+          if (await tx.clientes_puestos.findFirst({ where: { id_puesto: puesto.id_puesto, seccion: puesto.seccion || null, estado: true, fecha_fin: null } })) throw new ConflictException('El puesto y sección ya están ocupados.');
+          await tx.clientes_puestos.create({ data: { id_cliente: id, id_puesto: puesto.id_puesto, seccion: puesto.seccion || null, id_empresa: clienteExistente.id_empresa, fecha_inicio: new Date(), estado: true } });
         }
       }
 
@@ -203,35 +186,39 @@ export class ClientesService {
       });
     });
   }
-  async findAll(buscar?: string) {
-    const where = this.buildSearchWhere(buscar);
-    return this.prisma.clientes.findMany({
+  async findAll(buscar?: string, query?: QueryClientesDto) {
+    const where = this.buildListWhere(buscar, query?.estado, query?.tipo_relacion, query?.id_sede);
+    return this.prisma.scoped.clientes.findMany({
       where,
       include: this.getClienteInclude(),
       orderBy: { id_cliente: 'desc' },
     });
   }
 
-  async findAllPaginated(query: QueryClientesDto): Promise<PaginatedResult<any>> {
-    const { page = 1, limit = 10, buscar, estado = 'todos', tipo_relacion = 'todos' } = query;
+  async findAllPaginated(query: QueryClientesDto): Promise<PaginatedResult<any> & { activos: number; inactivos: number }> {
+    const { page = 1, limit = 10, buscar, estado = 'todos', tipo_relacion = 'todos', id_sede } = query;
     const skip = (page - 1) * limit;
 
-    const where = this.buildListWhere(buscar, estado, tipo_relacion);
+    const where = this.buildListWhere(buscar, estado, tipo_relacion, id_sede);
 
-    const [data, total] = await Promise.all([
-      this.prisma.clientes.findMany({
+    const [data, total, activos, inactivos] = await Promise.all([
+      this.prisma.scoped.clientes.findMany({
         where,
         include: this.getClienteIncludeForList(),
         orderBy: { id_cliente: 'asc' },
         skip,
         take: limit,
       }),
-      this.prisma.clientes.count({ where }),
+      this.prisma.scoped.clientes.count({ where }),
+      this.prisma.scoped.clientes.count({ where: { ...this.buildListWhere(buscar, undefined, tipo_relacion, id_sede), estado: true } }),
+      this.prisma.scoped.clientes.count({ where: { ...this.buildListWhere(buscar, undefined, tipo_relacion, id_sede), estado: false } }),
     ]);
 
     return {
       data,
       total,
+      activos,
+      inactivos,
       page,
       limit,
       totalPages: Math.ceil(total / limit),
@@ -239,7 +226,7 @@ export class ClientesService {
   }
 
   async findOne(id: number) {
-    const cliente = await this.prisma.clientes.findUnique({
+    const cliente = await this.prisma.scoped.clientes.findUnique({
       where: { id_cliente: BigInt(id) },
       include: this.getClienteInclude(),
     });
@@ -253,7 +240,7 @@ export class ClientesService {
     await this.ensureClienteExists(id);
 
     if (updateClienteDto.id_empresa || updateClienteDto.nombres || updateClienteDto.apellidos) {
-      const current = await this.prisma.clientes.findUnique({
+      const current = await this.prisma.scoped.clientes.findUnique({
         where: { id_cliente: BigInt(id) },
         select: { id_empresa: true, nombres: true, apellidos: true },
       });
@@ -269,7 +256,7 @@ export class ClientesService {
       await this.ensureUniqueTelefono(updateClienteDto.telefono, id);
     }
     try {
-      return await this.prisma.clientes.update({
+      return await this.prisma.scoped.clientes.update({
         where: { id_cliente: BigInt(id) },
         data: {
           nombres: updateClienteDto.nombres,
@@ -289,7 +276,7 @@ export class ClientesService {
 
   async changeState(id: number, estado: boolean) {
     await this.ensureClienteExists(id);
-    return this.prisma.clientes.update({
+    return this.prisma.scoped.clientes.update({
       where: { id_cliente: BigInt(id) },
       data: { estado },
       include: this.getClienteInclude(),
@@ -302,7 +289,7 @@ export class ClientesService {
     await this.ensureClienteExists(dto.id_cliente);
     await this.ensureSedeExists(dto.id_sede);
 
-    const existing = await this.prisma.cliente_sede.findFirst({
+    const existing = await this.prisma.scoped.cliente_sede.findFirst({
       where: {
         id_cliente: BigInt(dto.id_cliente),
         id_sede: BigInt(dto.id_sede),
@@ -313,7 +300,7 @@ export class ClientesService {
       throw new ConflictException('Esta relación cliente-sede ya existe');
     }
 
-    const cliente = await this.prisma.clientes.findUnique({
+    const cliente = await this.prisma.scoped.clientes.findUnique({
       where: { id_cliente: BigInt(dto.id_cliente) },
       select: { id_empresa: true },
     });
@@ -321,12 +308,13 @@ export class ClientesService {
       throw new NotFoundException(`Cliente con ID ${dto.id_cliente} no encontrado`);
     }
 
-    return this.prisma.cliente_sede.create({
+    return this.prisma.scoped.cliente_sede.create({
       data: {
         id_cliente: BigInt(dto.id_cliente),
         id_sede: BigInt(dto.id_sede),
         id_empresa: cliente.id_empresa,
         tipo_relacion: dto.tipo_relacion,
+        id_ubigeo: dto.id_ubigeo,
         estado: true,
       },
       include: { clientes: true, sedes: true },
@@ -335,7 +323,7 @@ export class ClientesService {
 
   async getSedesByCliente(id: number) {
     await this.ensureClienteExists(id);
-    const cliente = await this.prisma.clientes.findUnique({
+    const cliente = await this.prisma.scoped.clientes.findUnique({
       where: { id_cliente: BigInt(id) },
       include: {
         cliente_sede: {
@@ -356,7 +344,7 @@ export class ClientesService {
       throw new BadRequestException('tipo_relacion debe ser: emisor, receptor o ambos');
     }
 
-    const relation = await this.prisma.cliente_sede.findFirst({
+    const relation = await this.prisma.scoped.cliente_sede.findFirst({
       where: {
         id_cliente: BigInt(clienteId),
         id_sede: BigInt(sedeId),
@@ -367,7 +355,7 @@ export class ClientesService {
       throw new NotFoundException('Relación cliente-sede no encontrada');
     }
 
-    return this.prisma.cliente_sede.update({
+    return this.prisma.scoped.cliente_sede.update({
       where: { id_cliente_sede: relation.id_cliente_sede },
       data: { tipo_relacion: tipoRelacion },
       include: { clientes: true, sedes: true },
@@ -375,7 +363,7 @@ export class ClientesService {
   }
 
   async removeSede(clienteId: number, sedeId: number) {
-    const relation = await this.prisma.cliente_sede.findFirst({
+    const relation = await this.prisma.scoped.cliente_sede.findFirst({
       where: {
         id_cliente: BigInt(clienteId),
         id_sede: BigInt(sedeId),
@@ -386,7 +374,7 @@ export class ClientesService {
       throw new NotFoundException('Relación cliente-sede no encontrada');
     }
 
-    return this.prisma.cliente_sede.delete({
+    return this.prisma.scoped.cliente_sede.delete({
       where: { id_cliente_sede: relation.id_cliente_sede },
     });
   }
@@ -394,10 +382,14 @@ export class ClientesService {
   // ==================== GESTIÓN DE PUESTOS ====================
 
   async assignPuesto(clienteId: number, dto: AsignarPuestoDto) {
+    return this.prisma.scoped.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id_cliente FROM clientes WHERE id_cliente = ${BigInt(clienteId)} FOR UPDATE`;
+    await tx.$queryRaw`SELECT id_puesto FROM puestos WHERE id_puesto = ${BigInt(dto.id_puesto)} FOR UPDATE`;
+
     await this.ensureClienteExists(clienteId);
     await this.ensurePuestoExists(dto.id_puesto);
 
-    const existingGlobal = await this.prisma.clientes_puestos.findFirst({
+    const existingGlobal = await tx.clientes_puestos.findFirst({
       where: {
         id_puesto: BigInt(dto.id_puesto),
         seccion: dto.seccion ?? null,
@@ -414,7 +406,7 @@ export class ClientesService {
       );
     }
 
-    const cliente = await this.prisma.clientes.findUnique({
+    const cliente = await tx.clientes.findUnique({
       where: { id_cliente: BigInt(clienteId) },
       select: { id_empresa: true },
     });
@@ -422,7 +414,7 @@ export class ClientesService {
       throw new NotFoundException(`Cliente con ID ${clienteId} no encontrado`);
     }
 
-    return this.prisma.clientes_puestos.create({
+    return tx.clientes_puestos.create({
       data: {
         id_cliente: BigInt(clienteId),
         id_puesto: BigInt(dto.id_puesto),
@@ -433,33 +425,29 @@ export class ClientesService {
       },
       include: { puestos: true },
     });
+    });
   }
 
-  async removePuesto(clienteId: number, puestoId: number) {
-    const relation = await this.prisma.clientes_puestos.findFirst({
-      where: {  
-        id_cliente: BigInt(clienteId),
-        id_puesto: BigInt(puestoId),
-        fecha_fin: null,
-      },
-    });
-    if (!relation) {
-      throw new NotFoundException('Relación cliente-puesto no encontrada o ya finalizada');
-    }
-
-    return this.prisma.clientes_puestos.delete({
-      where: { id_cliente_puesto: relation.id_cliente_puesto },
+  async removePuesto(clienteId: number, puestoId: number, ocupacionId?: number) {
+    return this.prisma.scoped.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id_puesto FROM puestos WHERE id_puesto = ${BigInt(puestoId)} FOR UPDATE`;
+      const relaciones = await tx.clientes_puestos.findMany({ where: { id_cliente: clienteId, id_puesto: puestoId, id_cliente_puesto: ocupacionId, estado: true, fecha_fin: null } });
+      if (!relaciones.length) throw new NotFoundException('Ocupación vigente no encontrada.');
+      if (relaciones.length !== 1) throw new ConflictException('Hay varias secciones; indica id_cliente_puesto.');
+      return tx.clientes_puestos.update({ where: { id_cliente_puesto: relaciones[0].id_cliente_puesto }, data: { estado: false, fecha_fin: new Date() } });
     });
   }
 
   async getPuestosByCliente(clienteId: number) {
     await this.ensureClienteExists(clienteId);
-    const cliente = await this.prisma.clientes.findUnique({
+    const cliente = await this.prisma.scoped.clientes.findUnique({
       where: { id_cliente: BigInt(clienteId) },
       include: {
         clientes_puestos: {
           where: { fecha_fin: null, estado: true },
           select: {
+            id_cliente_puesto: true,
+            fecha_inicio: true,
             seccion: true,
             puestos: {
               include: {
@@ -475,14 +463,16 @@ export class ClientesService {
     if (!cliente) throw new NotFoundException(`Cliente ${clienteId} no encontrado`);
     // Retornar un array plano con seccion y puestos
     return cliente.clientes_puestos.map(cp => ({
+      id_cliente_puesto: cp.id_cliente_puesto,
+      fecha_inicio: cp.fecha_inicio,
       seccion: cp.seccion,
       puestos: cp.puestos
     }));
   }
 
   async findAllClientesPuestos() {
-    return this.prisma.clientes_puestos.findMany({
-      where: { estado: true },
+    return this.prisma.scoped.clientes_puestos.findMany({
+      where: { estado: true, fecha_fin: null },
       include: {
         clientes: {
           select: { id_cliente: true, nombres: true, apellidos: true, telefono: true },
@@ -502,28 +492,28 @@ export class ClientesService {
   // ==================== MÉTODOS PRIVADOS AUXILIARES ====================
 
   private async ensureEmpresaExists(empresaId: number) {
-    const empresa = await this.prisma.empresas.findUnique({
+    const empresa = await this.prisma.scoped.empresas.findUnique({
       where: { id_empresa: BigInt(empresaId) },
     });
     if (!empresa) throw new NotFoundException('Empresa no encontrada');
   }
 
   private async ensureSedeExists(sedeId: number) {
-    const sede = await this.prisma.sedes.findUnique({
+    const sede = await this.prisma.scoped.sedes.findUnique({
       where: { id_sede: BigInt(sedeId) },
     });
     if (!sede) throw new NotFoundException('Sede no encontrada');
   }
 
   private async ensurePuestoExists(puestoId: number) {
-    const puesto = await this.prisma.puestos.findUnique({
+    const puesto = await this.prisma.scoped.puestos.findUnique({
       where: { id_puesto: BigInt(puestoId) },
     });
     if (!puesto) throw new NotFoundException('Puesto no encontrado');
   }
 
   private async ensureClienteExists(id: number) {
-    const cliente = await this.prisma.clientes.findUnique({
+    const cliente = await this.prisma.scoped.clientes.findUnique({
       where: { id_cliente: BigInt(id) },
     });
     if (!cliente) throw new NotFoundException(`Cliente con ID ${id} no encontrado`);
@@ -541,7 +531,7 @@ export class ClientesService {
     if (excludeId) {
       where.id_cliente = { not: BigInt(excludeId) };
     }
-    const existing = await this.prisma.clientes.findFirst({ where });
+    const existing = await this.prisma.scoped.clientes.findFirst({ where });
     if (existing) {
       throw new ConflictException(
         `Ya existe un cliente con el nombre "${nombres}" en esta empresa`
@@ -565,16 +555,17 @@ export class ClientesService {
     buscar?: string,
     estado?: string,
     tipoRelacion?: string,
+    sedeId?: number,
   ): Prisma.clientesWhereInput {
     const where: Prisma.clientesWhereInput = this.buildSearchWhere(buscar);
 
     if (estado && estado !== 'todos') {
       where.estado = estado === 'true';
     }
-    if (tipoRelacion && tipoRelacion !== 'todos') {
-      where.cliente_sede = {
-        some: { tipo_relacion: tipoRelacion, estado: true },
-      };
+    if (sedeId || (tipoRelacion && tipoRelacion !== 'todos')) {
+      where.cliente_sede = { some: { estado: true, id_sede: sedeId,
+        ...(tipoRelacion && tipoRelacion !== 'todos' ? { tipo_relacion: { in: tipoRelacion === 'ambos' ? ['ambos'] : [tipoRelacion, 'ambos'] } } : {}),
+      } };
     }
     return where;
   }
@@ -622,7 +613,7 @@ export class ClientesService {
     if (excludeId) {
       where.id_cliente = { not: BigInt(excludeId) };
     }
-    const existing = await this.prisma.clientes.findFirst({ where });
+    const existing = await this.prisma.scoped.clientes.findFirst({ where });
     if (existing) {
       throw new ConflictException(
         `El teléfono "${telefono}" ya está registrado por otro cliente.`,

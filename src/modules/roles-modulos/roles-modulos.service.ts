@@ -12,13 +12,13 @@ export class RolesModulosService {
         const usuarioAsigno = dto.usuario_asigno ? BigInt(dto.usuario_asigno) : null;
 
         // Verificar que el rol existe
-        const rol = await this.prisma.roles_usuarios.findUnique({
+        const rol = await this.prisma.scoped.roles_usuarios.findUnique({
             where: { id_rol_usuario: rolId },
         });
         if (!rol) throw new NotFoundException(`Rol con ID ${dto.rol_id} no encontrado`);
 
         // Eliminar asignaciones actuales del rol
-        await this.prisma.roles_modulos.deleteMany({
+        await this.prisma.scoped.roles_modulos.deleteMany({
             where: { rol_id: rolId },
         });
 
@@ -33,7 +33,7 @@ export class RolesModulosService {
             usuario_asigno: usuarioAsigno,
         }));
 
-        const result = await this.prisma.roles_modulos.createMany({
+        const result = await this.prisma.scoped.roles_modulos.createMany({
             data,
             skipDuplicates: true,
         });
@@ -46,19 +46,19 @@ export class RolesModulosService {
         const moduloIdBig = BigInt(moduloId);
 
         // Verificar que el rol existe
-        const rol = await this.prisma.roles_usuarios.findUnique({
+        const rol = await this.prisma.scoped.roles_usuarios.findUnique({
             where: { id_rol_usuario: rolIdBig },
         });
         if (!rol) throw new NotFoundException(`Rol con ID ${rolId} no encontrado`);
 
         // Verificar que el módulo existe
-        const modulo = await this.prisma.modulos.findUnique({
+        const modulo = await this.prisma.scoped.modulos.findUnique({
             where: { id_modulo: moduloIdBig },
         });
         if (!modulo) throw new NotFoundException(`Módulo con ID ${moduloId} no encontrado`);
 
         // Verificar si ya existe la asignación
-        const existing = await this.prisma.roles_modulos.findFirst({
+        const existing = await this.prisma.scoped.roles_modulos.findFirst({
             where: {
                 rol_id: rolIdBig,
                 modulo_id: moduloIdBig,
@@ -67,13 +67,13 @@ export class RolesModulosService {
 
         if (existing) {
             // Quitar módulo del rol
-            await this.prisma.roles_modulos.delete({
+            await this.prisma.scoped.roles_modulos.delete({
                 where: { id_rol_modulo: existing.id_rol_modulo },
             });
             return { assigned: false, message: 'Módulo removido del rol' };
         } else {
             // Asignar módulo al rol
-            await this.prisma.roles_modulos.create({
+            await this.prisma.scoped.roles_modulos.create({
                 data: {
                     rol_id: rolIdBig,
                     modulo_id: moduloIdBig,
@@ -85,12 +85,12 @@ export class RolesModulosService {
     }
 
     async getModulosByRol(rolId: number) {
-        const rol = await this.prisma.roles_usuarios.findUnique({
+        const rol = await this.prisma.scoped.roles_usuarios.findUnique({
             where: { id_rol_usuario: BigInt(rolId) },
         });
         if (!rol) throw new NotFoundException(`Rol con ID ${rolId} no encontrado`);
 
-        const asignaciones = await this.prisma.roles_modulos.findMany({
+        const asignaciones = await this.prisma.scoped.roles_modulos.findMany({
             where: { rol_id: BigInt(rolId) },
             include: {
                 modulos: {
@@ -118,12 +118,12 @@ export class RolesModulosService {
     }
 
     async getRolesByModulo(moduloId: number) {
-        const modulo = await this.prisma.modulos.findUnique({
+        const modulo = await this.prisma.scoped.modulos.findUnique({
             where: { id_modulo: BigInt(moduloId) },
         });
         if (!modulo) throw new NotFoundException(`Módulo con ID ${moduloId} no encontrado`);
 
-        const asignaciones = await this.prisma.roles_modulos.findMany({
+        const asignaciones = await this.prisma.scoped.roles_modulos.findMany({
             where: { modulo_id: BigInt(moduloId) },
             include: {
                 roles_usuarios: true,
@@ -143,7 +143,7 @@ export class RolesModulosService {
 
     async getModulosPermitidosByUsuario(usuarioId: number) {
         // Obtener los roles del usuario
-        const usuarioRoles = await this.prisma.usuarios_roles.findMany({
+        const usuarioRoles = await this.prisma.scoped.usuarios_roles.findMany({
             where: { id_usuario: BigInt(usuarioId) },
             include: { roles_usuarios: true },
         });
@@ -153,7 +153,7 @@ export class RolesModulosService {
         if (rolIds.length === 0) return [];
 
         // Obtener todos los módulos asignados a esos roles (sin duplicados)
-        const modulosAsignados = await this.prisma.roles_modulos.findMany({
+        const modulosAsignados = await this.prisma.scoped.roles_modulos.findMany({
             where: { rol_id: { in: rolIds } },
             include: {
                 modulos: {

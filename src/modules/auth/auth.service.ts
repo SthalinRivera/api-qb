@@ -31,7 +31,7 @@ export class AuthService {
 
             console.log('1️⃣ Usuario extraído desde token:', email);
 
-            let userDb: any = await this.prisma.usuarios.findFirst({
+            let userDb: any = await this.prisma.scoped.usuarios.findFirst({
                 where: {
                     email,
                     estado: true,
@@ -91,7 +91,7 @@ export class AuthService {
             }
 
             if (hasChanges) {
-                userDb = await this.prisma.usuarios.update({
+                userDb = await this.prisma.scoped.usuarios.update({
                     where: {
                         id_usuario: userDb.id_usuario,
                     },
@@ -129,7 +129,7 @@ export class AuthService {
             let modulos: any[] = [];
             if (rolIds.length > 0) {
                 const rolIdsBigInt = rolIds.map((id: any) => BigInt(id));
-                const modulosAsignados = await this.prisma.$queryRaw(Prisma.sql`
+                const modulosAsignados = await this.prisma.scoped.$queryRaw(Prisma.sql`
                     SELECT DISTINCT
                         m.id_modulo,
                         m.nombre,

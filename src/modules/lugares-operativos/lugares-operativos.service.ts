@@ -8,12 +8,12 @@ export class LugaresOperativosService {
   constructor(private readonly prisma: PrismaService) { }
 
   async create(createDto: CreateLugarOperativoDto) {
-    const empresa = await this.prisma.empresas.findUnique({
+    const empresa = await this.prisma.scoped.empresas.findUnique({
       where: { id_empresa: BigInt(createDto.id_empresa) },
     });
     if (!empresa) throw new NotFoundException('Empresa no encontrada');
 
-    const sede = await this.prisma.sedes.findFirst({
+    const sede = await this.prisma.scoped.sedes.findFirst({
       where: {
         id_sede: BigInt(createDto.id_sede),
         id_empresa: BigInt(createDto.id_empresa),
@@ -21,10 +21,11 @@ export class LugaresOperativosService {
     });
     if (!sede) throw new NotFoundException('Sede no encontrada o no pertenece a la empresa');
 
-    return this.prisma.lugares_operativos.create({
+    return this.prisma.scoped.lugares_operativos.create({
       data: {
         id_empresa: BigInt(createDto.id_empresa),
         id_sede: BigInt(createDto.id_sede),
+        id_ubigeo: createDto.id_ubigeo,
         nombre: createDto.nombre,
         direccion_referencia: createDto.direccion_referencia,
         observaciones: createDto.observaciones,
@@ -38,7 +39,7 @@ export class LugaresOperativosService {
   async findAll(empresaId: number, estado?: boolean) {
     const where: any = { id_empresa: BigInt(empresaId) };
     if (estado !== undefined) where.estado = estado;
-    return this.prisma.lugares_operativos.findMany({
+    return this.prisma.scoped.lugares_operativos.findMany({
       where,
       include: { empresas: true, sedes: true },
       orderBy: { nombre: 'asc' },
@@ -49,7 +50,7 @@ export class LugaresOperativosService {
     const where: any = { id_lugar: BigInt(id) };
     if (empresaId) where.id_empresa = BigInt(empresaId);
 
-    const lugar = await this.prisma.lugares_operativos.findFirst({
+    const lugar = await this.prisma.scoped.lugares_operativos.findFirst({
       where,
       include: { empresas: true, sedes: true },
     });
@@ -58,7 +59,7 @@ export class LugaresOperativosService {
   }
 
   async update(id: number, updateDto: UpdateLugarOperativoDto) {
-    const existing = await this.prisma.lugares_operativos.findUnique({
+    const existing = await this.prisma.scoped.lugares_operativos.findUnique({
       where: { id_lugar: BigInt(id) },
     });
     if (!existing) throw new NotFoundException(`Lugar operativo con ID ${id} no encontrado`);
@@ -68,10 +69,11 @@ export class LugaresOperativosService {
     }
 
     try {
-      const updated = await this.prisma.lugares_operativos.update({
+      const updated = await this.prisma.scoped.lugares_operativos.update({
         where: { id_lugar: BigInt(id) },
         data: {
           id_sede: updateDto.id_sede ? BigInt(updateDto.id_sede) : undefined,
+          id_ubigeo: updateDto.id_ubigeo,
           nombre: updateDto.nombre,
           direccion_referencia: updateDto.direccion_referencia,
           observaciones: updateDto.observaciones,
@@ -89,7 +91,7 @@ export class LugaresOperativosService {
 
   async changeState(id: number, estado: boolean, empresaId?: number) {
     if (empresaId) {
-      const existing = await this.prisma.lugares_operativos.findFirst({
+      const existing = await this.prisma.scoped.lugares_operativos.findFirst({
         where: { id_lugar: BigInt(id), id_empresa: BigInt(empresaId) },
       });
       if (!existing) throw new NotFoundException(`Lugar operativo con ID ${id} no encontrado`);
@@ -98,14 +100,14 @@ export class LugaresOperativosService {
   }
 
   async findBySede(sedeId: number, estado?: boolean) {
-    const sede = await this.prisma.sedes.findUnique({
+    const sede = await this.prisma.scoped.sedes.findUnique({
       where: { id_sede: BigInt(sedeId) },
     });
     if (!sede) throw new NotFoundException(`Sede con ID ${sedeId} no encontrada`);
 
     const where: any = { id_sede: BigInt(sedeId) };
     if (estado !== undefined) where.estado = estado;
-    return this.prisma.lugares_operativos.findMany({
+    return this.prisma.scoped.lugares_operativos.findMany({
       where,
       include: { empresas: true, sedes: true },
       orderBy: { nombre: 'asc' },

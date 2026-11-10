@@ -1,3 +1,4 @@
+import { QueryPuestosDto } from './dto/query-puestos.dto';
 import { Controller, Get, Post, Body, Patch, Param, Query, ParseIntPipe, Put, Req, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { PuestosService } from './puestos.service';
@@ -32,10 +33,8 @@ export class PuestosController {
 
   @Get()
   @ApiOperation({ summary: 'Listar puestos de la empresa' })
-  async findAll(@Query('estado') estado?: string, @Req() req?: any) {
-    const profile = await this.getProfile(req);
-    const estadoBool = estado === 'true' ? true : estado === 'false' ? false : undefined;
-    return this.puestosService.findAll(profile.id_empresa, estadoBool);
+  async findAll(@Query() query: QueryPuestosDto, @Req() req: any) {
+    return this.puestosService.findAll(Number(req.actor.empresaId), query.estado === 'true' ? true : query.estado === 'false' ? false : undefined, query.id_lugar, query);
   }
 
   @Get('mercado/:idMercado')
