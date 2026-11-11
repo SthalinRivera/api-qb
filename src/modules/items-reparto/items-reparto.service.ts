@@ -45,10 +45,10 @@ export class ItemsRepartoService {
   private async bloquear(tx: any, detalleId: number | bigint) {
     const ref = await tx.detalle_carga.findUnique({ where: { id_detalle_carga: detalleId } });
     if (!ref) throw new NotFoundException('Carga no encontrada.');
-    await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${ref.id_operacion} FOR UPDATE`;
+    await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${ref.id_operacion} AND id_empresa = ${this.prisma.empresaId} FOR UPDATE`;
     const op = await tx.operaciones_carga.findUniqueOrThrow({ where: { id_operacion: ref.id_operacion } });
     if (!operacionAbierta(op.estado)) throw new BadRequestException('La operación está cerrada.');
-    return ref;
+    return tx.detalle_carga.findUniqueOrThrow({ where: { id_detalle_carga: detalleId } });
   }
   private async receptorValido(tx: any, cliente: number | bigint | null, puesto: number | bigint | null) {
     if (!cliente || !puesto) throw new BadRequestException('Indica receptor y puesto.');
@@ -238,11 +238,7 @@ export class ItemsRepartoService {
   }
 
   // ==================== DETALLES ====================
-  async addDetalle(id: number, dto?: unknown) {
-    throw new BadRequestException(
-      'Para cambiar las calidades de un destino, elimina la asignación y vuelve a crearla antes de confirmar la carga.',
-    );
-  }
+
 
   async findAllDetalles(itemId?: number) {
     const where: any = {};
@@ -274,17 +270,9 @@ export class ItemsRepartoService {
     return detalle;
   }
 
-  async updateDetalle(id: number, dto?: unknown) {
-    throw new BadRequestException(
-      'Para cambiar las calidades de un destino, elimina la asignación y vuelve a crearla antes de confirmar la carga.',
-    );
-  }
 
-  async removeDetalle(id: number, dto?: unknown) {
-    throw new BadRequestException(
-      'Para cambiar las calidades de un destino, elimina la asignación y vuelve a crearla antes de confirmar la carga.',
-    );
-  }
+
+
 
   // ==================== AUXILIARES ====================
   private async validateCantidadDisponible(
@@ -381,7 +369,7 @@ export class ItemsRepartoService {
         where: { id_detalle_carga: dto.id_detalle_carga },
       });
       if (!ref) throw new NotFoundException('Carga no encontrada.');
-      await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${ref.id_operacion} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${ref.id_operacion} AND id_empresa = ${this.prisma.empresaId} FOR UPDATE`;
       const detalle = await tx.detalle_carga.findUnique({
         where: { id_detalle_carga: dto.id_detalle_carga },
         include: {
@@ -392,7 +380,7 @@ export class ItemsRepartoService {
       });
       if (!detalle || !operacionAbierta(detalle.operaciones_carga.estado))
         throw new BadRequestException(
-          'La carga ya fue confirmada o está cancelada.',
+          'La carga no permite esta modificación.',
         );
       if (!detalle.es_reparto)
         throw new BadRequestException(

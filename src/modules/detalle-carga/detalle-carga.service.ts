@@ -23,18 +23,18 @@ export class DetalleCargaService {
       where: { id_detalle_carga: id },
     });
     if (!ref) throw new NotFoundException('Producto de carga no encontrado.');
-    await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${ref.id_operacion} FOR UPDATE`;
+    await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${ref.id_operacion} AND id_empresa = ${this.prisma.empresaId} FOR UPDATE`;
     const detalle = await tx.detalle_carga.findUniqueOrThrow({
       where: { id_detalle_carga: id },
       include: {
         operaciones_carga: true,
         detalle_carga_calidades: true,
-        items_reparto: { include: { entregas: true, guias_operativas: true } },
+        items_reparto: { include: { entregas: true, guias_operativas: true, resoluciones_reparto: true } },
       },
     });
     if (!operacionAbierta(detalle.operaciones_carga.estado))
       throw new BadRequestException(
-        'Esta carga ya fue confirmada o está cancelada y no puede modificarse.',
+        'Esta carga no permite esta modificación y no puede modificarse.',
       );
     return detalle;
   }
@@ -47,7 +47,7 @@ export class DetalleCargaService {
       throw new NotFoundException(`Operación con ID ${operacionId} no existe`);
     if (!operacionAbierta(operacion.estado)) {
       throw new BadRequestException(
-        'No se puede agregar detalles a una operación en tránsito o cancelada',
+        'No se puede agregar detalles a una operación fuera de preparación',
       );
     }
 
@@ -62,7 +62,7 @@ export class DetalleCargaService {
     await this.validateRelations(dto);
 
     return this.prisma.scoped.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${BigInt(operacionId)} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${BigInt(operacionId)} AND id_empresa = ${this.prisma.empresaId} FOR UPDATE`;
       const actual = await tx.operaciones_carga.findUniqueOrThrow({
         where: { id_operacion: operacionId },
       });
@@ -144,7 +144,7 @@ export class DetalleCargaService {
           },
         });
       // Actualizar estado de operación
-      if (operacion.estado === 'pendiente') {
+      if (actual.estado === 'pendiente') {
         await tx.operaciones_carga.update({
           where: { id_operacion: operacionId },
           data: { estado: 'en_curso' },
@@ -231,7 +231,7 @@ export class DetalleCargaService {
           'El tipo de entrega no puede cambiarse después de crear el producto.',
         );
       if (dto.orden_carga !== undefined && await tx.detalle_carga.count({ where: { id_operacion: detalle.id_operacion, orden_carga: dto.orden_carga, id_detalle_carga: { not: detalle.id_detalle_carga } } })) throw new BadRequestException('El orden ya está ocupado.');
-      if (detalle.items_reparto.some((i) => i.entregas.length || i.guias_operativas.some((g) => !['anulada','reemplazada'].includes(g.estado || ''))))
+      if (detalle.items_reparto.some((i) => i.entregas.length || i.resoluciones_reparto.length || i.guias_operativas.some((g) => !['anulada','reemplazada'].includes(g.estado || ''))))
         throw new BadRequestException('El producto tiene entregas o guías vigentes. Anula la guía antes de corregir; las entregas registradas son inmutables.');
       const cambiaDeuda =
         (dto.cantidad_jabas !== undefined &&
@@ -282,6 +282,17 @@ export class DetalleCargaService {
             data: { cantidad_asignada: dto.cantidad_jabas },
           });
       }
+      if (dto.id_operacion !== undefined && BigInt(dto.id_operacion) !== detalle.id_operacion) throw new BadRequestException('No se puede mover una línea a otra operación.');
+      if (dto.id_cliente_receptor !== undefined || dto.id_puesto !== undefined || dto.id_seccion !== undefined) {
+        if (detalle.es_reparto || detalle.items_reparto.length !== 1) throw new BadRequestException('Reajusta cada destino desde sus asignaciones.');
+        const item = detalle.items_reparto[0];
+        const receptor = dto.id_cliente_receptor ?? item.id_cliente_receptor;
+        const puesto = dto.id_puesto ?? item.id_puesto;
+        if (!receptor || !puesto) throw new BadRequestException('Selecciona receptor y puesto.');
+        const relacion = await tx.clientes_puestos.findFirst({ where: { id_cliente: receptor, id_puesto: puesto, estado: true, fecha_fin: null, ...(dto.id_seccion ? { seccion: dto.id_seccion } : {}) } });
+        if (!relacion) throw new BadRequestException('El receptor no tiene ese puesto activo.');
+        await tx.items_reparto.update({ where: { id_item_reparto: item.id_item_reparto }, data: { id_cliente_receptor: receptor, id_puesto: puesto, seccion: dto.id_seccion ?? relacion.seccion } });
+      }
       await this.validateRelations(dto);
       return tx.detalle_carga.update({
         where: { id_detalle_carga: id },
@@ -328,7 +339,7 @@ export class DetalleCargaService {
       }
       if (
         detalle.items_reparto.some(
-          (i) => i.entregas.length || i.guias_operativas.length,
+          (i) => i.entregas.length || i.resoluciones_reparto.length || i.guias_operativas.length,
         )
       )
         throw new BadRequestException(
@@ -366,7 +377,7 @@ export class DetalleCargaService {
         where: { id_detalle_carga: detalleId },
       });
       if (!referencia) throw new NotFoundException('Carga no encontrada.');
-      await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${referencia.id_operacion} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${referencia.id_operacion} AND id_empresa = ${this.prisma.empresaId} FOR UPDATE`;
       const precioFinal =
         dto.precio_unitario == null ? null : Number(dto.precio_unitario);
       if (
@@ -389,7 +400,7 @@ export class DetalleCargaService {
       });
       if (!operacion || !operacionAbierta(operacion.estado)) {
         throw new BadRequestException(
-          'No se pueden modificar calidades de una operación en tránsito o cancelada',
+          'No se pueden modificar calidades de una operación fuera de preparación',
         );
       }
 
@@ -460,11 +471,11 @@ export class DetalleCargaService {
         tx,
         Number(calidad.id_detalle_carga),
       );
-      const asignaciones = await tx.items_reparto_detalle.findMany({ where: { id_detalle_carga_calidad: calidadId }, include: { items_reparto: { include: { entregas: true, guias_operativas: true } } } });
+      const asignaciones = await tx.items_reparto_detalle.findMany({ where: { id_detalle_carga_calidad: calidadId }, include: { items_reparto: { include: { entregas: true, guias_operativas: true, resoluciones_reparto: true } } } });
       const asignado = asignaciones.reduce((sum, a) => sum + a.cantidad, 0);
       if (dto.cantidad !== undefined && dto.cantidad < asignado) throw new BadRequestException('Reajusta primero las asignaciones: la calidad no puede quedar por debajo de lo asignado.');
       if (dto.id_calidad !== undefined && BigInt(dto.id_calidad) !== calidad.id_calidad && asignado > 0) throw new BadRequestException('La calidad ya está asignada. Reajusta el desglose antes de cambiar su identidad.');
-      if (asignaciones.some((a) => a.items_reparto.entregas.length || a.items_reparto.guias_operativas.some((g) => !['anulada','reemplazada'].includes(g.estado || '')))) throw new BadRequestException('La calidad está documentada o entregada. Anula la guía antes de corregir.');
+      if (asignaciones.some((a) => a.items_reparto.entregas.length || a.items_reparto.resoluciones_reparto.length || a.items_reparto.guias_operativas.some((g) => !['anulada','reemplazada'].includes(g.estado || '')))) throw new BadRequestException('La calidad está documentada o entregada. Anula la guía antes de corregir.');
       const otras = detalle.detalle_carga_calidades
         .filter(
           (c) =>

@@ -1,3 +1,4 @@
+import { tenantRelations } from './tenant-relations.generated';
 import { ForbiddenException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Actor } from './request-context';
@@ -25,7 +26,7 @@ export function alcanceModelo(model: string, actor: Actor): Record<string, any> 
 
 export async function prepararConsulta(model: string, operation: string, args: any, actor: Actor, base: any) {
   const scope = alcanceModelo(model, actor);
-  if (operation.startsWith('find') || ['count','aggregate','groupBy','update','updateMany','delete','deleteMany','upsert'].includes(operation)) {
+  if (operation.startsWith('find') || ['count','aggregate','groupBy','update','updateMany','updateManyAndReturn','delete','deleteMany','upsert'].includes(operation)) {
     args.where = { ...args.where, AND: [args.where?.AND || {}, scope] };
   }
   const validarDatos = async (data: any) => {
@@ -40,10 +41,12 @@ export async function prepararConsulta(model: string, operation: string, args: a
     for (const field of modelos.get(model)?.fields || []) {
       if (field.kind !== 'object') continue;
       if (data[field.name] !== undefined) throw new ForbiddenException('Usa identificadores explícitos para modificar relaciones.');
-      const from = field.relationFromFields || [];
-      const to = field.relationToFields || [];
+      const relation = tenantRelations[model]?.find(r => r.name === field.name);
+      const from = relation?.from || [];
+      const to = relation?.to || [];
       if (!from.length || from.some((name) => data[name] == null)) continue;
       const where = Object.fromEntries(from.map((name, i) => [to[i], data[name]]));
+      if (field.type === 'empresas' && where.id_empresa === actor.empresaId) continue;
       const targetScope = alcanceModelo(field.type, actor);
       if (!Object.keys(targetScope).length && !['distritos','provincias','departamentos'].includes(field.type)) continue;
       const exists = await base[field.type].findFirst({ where: { ...where, AND: targetScope } });

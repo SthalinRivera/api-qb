@@ -21,7 +21,8 @@ describe('EntregasService: secuencia y saldos', () => {
       id_puesto: 3n,
       cantidad_asignada: 10,
       entregas: [],
-      guias_operativas: [],
+      resoluciones_reparto: [],
+      guias_operativas: [{ id_guia: 9n, estado: 'emitida', cobertura: { id_item_reparto: '5', cantidad: 10 } }],
       detalle_carga: {
         id_operacion: 7n,
         id_cliente_emisor: 1n,
@@ -78,12 +79,13 @@ describe('EntregasService: secuencia y saldos', () => {
       jabas_por_cobrar: { create: jest.fn() },
       logs_actividad: { create: jest.fn() },
     };
+    prisma.scoped = prisma;
     service = new EntregasService(prisma);
   });
-  it('crea la guía automáticamente y cobra solo las jabas recibidas sin duplicar la deuda del emisor', async () => {
-    const entrega = await service.create(dto());
+  it('usa la guía emitida y cobra solo las jabas recibidas sin duplicar la deuda del emisor', async () => {
+    const entrega = await service.create(dto(), 1);
     expect(entrega.id_entrega).toBe(42n);
-    expect(prisma.guias_operativas.create).toHaveBeenCalledTimes(1);
+    expect(prisma.guias_operativas.create).not.toHaveBeenCalled();
     expect(prisma.jabas_por_pagar.create).not.toHaveBeenCalled();
     expect(prisma.jabas_por_cobrar.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ cantidad_original: 5 }),
@@ -91,14 +93,14 @@ describe('EntregasService: secuencia y saldos', () => {
     expect(prisma.operaciones_carga.update).not.toHaveBeenCalled();
   });
   it('reutiliza la guía del destino', async () => {
-    item.guias_operativas = [{ id_guia: 9n, estado: 'emitida' }];
-    await service.create(dto());
+    item.guias_operativas = [{ id_guia: 9n, estado: 'emitida', cobertura: { id_item_reparto: '5', cantidad: 10 } }];
+    await service.create(dto(), 1);
     expect(prisma.guias_operativas.create).not.toHaveBeenCalled();
   });
-  it('bloquea entregas antes de confirmar la carga o después de cancelar', async () => {
-    for (const estado of ['en_curso', 'pendiente', 'cancelado']) {
+  it('bloquea entregas fuera de reparto', async () => {
+    for (const estado of ['en_curso', 'pendiente', 'en_transito', 'completado']) {
       item.detalle_carga.operaciones_carga.estado = estado;
-      await expect(service.create(dto())).rejects.toThrow('Primero completa');
+      await expect(service.create(dto(), 1)).rejects.toThrow('Inicia el reparto');
     }
     expect(prisma.entregas.create).not.toHaveBeenCalled();
   });
@@ -106,23 +108,40 @@ describe('EntregasService: secuencia y saldos', () => {
     item.entregas = [
       { cantidad_entregada: 10, estado_entrega: 'entregado_total' },
     ];
-    await expect(service.create(dto())).rejects.toThrow('ya está completa');
+    await expect(service.create(dto(), 1)).rejects.toThrow('ya está completa');
     expect(prisma.entregas.create).not.toHaveBeenCalled();
   });
   it('rechaza una guía de otro destino', async () => {
-    await expect(service.create({ ...dto(), id_guia: 99 })).rejects.toThrow(
+    await expect(service.create({ ...dto(), id_guia: 99 }, 1)).rejects.toThrow(
       'no corresponde',
     );
   });
   it('no genera deudas para jabas sin retorno', async () => {
     item.detalle_carga.requiere_retorno_jabas = false;
-    await service.create(dto());
+    await service.create(dto(), 1);
     expect(prisma.jabas_por_pagar.create).not.toHaveBeenCalled();
     expect(prisma.jabas_por_cobrar.create).not.toHaveBeenCalled();
   });
   it('rechaza una entrega anterior a la carga', async () => {
     await expect(
-      service.create({ ...dto(), fecha_entrega: '2026-11-06' }),
+      service.create({ ...dto(), fecha_entrega: '2026-11-06' }, 1),
     ).rejects.toThrow('anterior');
+  });
+
+  it('no entrega sin guía ni inventa cobertura histórica', async () => {
+    item.guias_operativas = [];
+    await expect(service.create(dto(), 1)).rejects.toThrow('Emite la guía');
+    item.guias_operativas = [{ id_guia: 9n, estado: 'emitida', cobertura: null }];
+    await expect(service.create(dto(), 1)).rejects.toThrow('histórica verificada');
+    expect(prisma.entregas.create).not.toHaveBeenCalled();
+  });
+  it('descuenta devoluciones y mermas del saldo físico', async () => {
+    item.resoluciones_reparto = [{ cantidad: 7 }];
+    await expect(service.create(dto(), 1)).rejects.toThrow();
+    expect(prisma.entregas.create).not.toHaveBeenCalled();
+  });
+  it('no cierra automáticamente al recibir el saldo completo', async () => {
+    await service.create({ ...dto(), cantidad_entregada: 10, estado_entrega: 'entregado_total' }, 1);
+    expect(prisma.operaciones_carga.update).not.toHaveBeenCalled();
   });
 });

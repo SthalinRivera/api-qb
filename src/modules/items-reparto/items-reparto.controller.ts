@@ -15,8 +15,6 @@ import { ItemsRepartoService } from './items-reparto.service';
 import { CreateItemRepartoDto } from './dto/create-items-reparto.dto';
 import { UpdateItemRepartoDto } from './dto/update-items-reparto.dto';
 import { QueryItemsRepartoDto } from './dto/query-items-reparto.dto';
-import { UpdateItemsRepartoDetalleDto } from './dto/update-items-reparto-detalle.dto';
-import { CreateItemsRepartoDetalleDto } from './dto/create-items-reparto-detalle.dto';
 import { CreateItemRepartoConDetallesDto } from './dto/create-items-reparto-con-detalles.dto';
 import { CreateItemsRepartoMultipleDto } from './dto/create-items-reparto-multiple.dto';
 
@@ -67,13 +65,7 @@ export class ItemsRepartoController {
   }
 
   // ==================== DETALLES ====================
-  @Post(':id/detalle')
-  addDetalle(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: CreateItemsRepartoDetalleDto,
-  ) {
-    return this.service.addDetalle(id, dto);
-  }
+
   @Post('from-calidades-multiple')
   createMultipleFromCalidades(@Body() dto: CreateItemsRepartoMultipleDto) {
     return this.service.createMultipleFromCalidades(dto);
@@ -88,18 +80,9 @@ export class ItemsRepartoController {
     return this.service.findOneDetalle(detalleId);
   }
 
-  @Put('detalle/:detalleId')
-  updateDetalle(
-    @Param('detalleId', ParseIntPipe) detalleId: number,
-    @Body() dto: UpdateItemsRepartoDetalleDto,
-  ) {
-    return this.service.updateDetalle(detalleId, dto);
-  }
 
-  @Delete('detalle/:detalleId')
-  removeDetalle(@Param('detalleId', ParseIntPipe) detalleId: number) {
-    return this.service.removeDetalle(detalleId);
-  }
+
+
 
   // ==================== ENDPOINTS ANIDADOS (útiles para frontend) ====================
   @Get('detalle-carga/:detalleId')

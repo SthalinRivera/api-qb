@@ -24,7 +24,6 @@ export enum EstadoOperacion {
     EN_TRANSITO = 'en_transito',
     REPARTIENDO = 'repartiendo',
     COMPLETADO = 'completado',
-    CANCELADO = 'cancelado',
 }
 
 export enum Seccion {

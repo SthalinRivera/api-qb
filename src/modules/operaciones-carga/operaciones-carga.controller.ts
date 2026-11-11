@@ -104,9 +104,4 @@ export class OperacionesCargaController {
   }
 
 
-  // operaciones-carga.controller.ts
-  @Post(':id/generar-guias-por-puesto')
-  async generarGuiasPorPuesto(@Param('id', ParseIntPipe) id: number) {
-    return this.service.generarGuias(id);
-  }
 }

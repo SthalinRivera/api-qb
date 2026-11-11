@@ -79,7 +79,8 @@ export class ClientesService {
 
       // Asignar puestos (validando ocupación global)
       if (dto.puestos?.length) {
-        for (const p of dto.puestos) {
+        for (const p of [...dto.puestos].sort((a,b) => a.id_puesto-b.id_puesto)) {
+          await tx.$queryRaw`SELECT id_puesto FROM puestos WHERE id_puesto = ${BigInt(p.id_puesto)} AND id_empresa = ${this.prisma.empresaId} FOR UPDATE`;
           const ocupado = await tx.clientes_puestos.findFirst({
             where: {
               id_puesto: BigInt(p.id_puesto),
@@ -165,15 +166,15 @@ export class ClientesService {
       }
 
       if (dto.puestos !== undefined) {
-        await tx.$queryRaw`SELECT id_cliente FROM clientes WHERE id_cliente = ${BigInt(id)} FOR UPDATE`;
+        await tx.$queryRaw`SELECT id_cliente FROM clientes WHERE id_cliente = ${BigInt(id)} AND id_empresa = ${this.prisma.empresaId} FOR UPDATE`;
         const actuales = await tx.clientes_puestos.findMany({ where: { id_cliente: BigInt(id), estado: true, fecha_fin: null } });
         const key = (p: { id_puesto: bigint | number; seccion?: string | null }) => `${p.id_puesto}:${p.seccion || ''}`;
         const nuevos = new Set(dto.puestos.map(key));
         if (nuevos.size !== dto.puestos.length) throw new ConflictException('Puestos duplicados en la solicitud.');
         for (const anterior of actuales) if (!nuevos.has(key(anterior))) await tx.clientes_puestos.update({ where: { id_cliente_puesto: anterior.id_cliente_puesto }, data: { estado: false, fecha_fin: new Date() } });
-        for (const puesto of dto.puestos) {
+        for (const puesto of [...dto.puestos].sort((a,b) => a.id_puesto-b.id_puesto)) {
           if (actuales.some((actual) => key(actual) === key(puesto))) continue;
-          await tx.$queryRaw`SELECT id_puesto FROM puestos WHERE id_puesto = ${BigInt(puesto.id_puesto)} FOR UPDATE`;
+          await tx.$queryRaw`SELECT id_puesto FROM puestos WHERE id_puesto = ${BigInt(puesto.id_puesto)} AND id_empresa = ${this.prisma.empresaId} FOR UPDATE`;
           if (await tx.clientes_puestos.findFirst({ where: { id_puesto: puesto.id_puesto, seccion: puesto.seccion || null, estado: true, fecha_fin: null } })) throw new ConflictException('El puesto y sección ya están ocupados.');
           await tx.clientes_puestos.create({ data: { id_cliente: id, id_puesto: puesto.id_puesto, seccion: puesto.seccion || null, id_empresa: clienteExistente.id_empresa, fecha_inicio: new Date(), estado: true } });
         }
@@ -383,8 +384,8 @@ export class ClientesService {
 
   async assignPuesto(clienteId: number, dto: AsignarPuestoDto) {
     return this.prisma.scoped.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT id_cliente FROM clientes WHERE id_cliente = ${BigInt(clienteId)} FOR UPDATE`;
-    await tx.$queryRaw`SELECT id_puesto FROM puestos WHERE id_puesto = ${BigInt(dto.id_puesto)} FOR UPDATE`;
+    await tx.$queryRaw`SELECT id_cliente FROM clientes WHERE id_cliente = ${BigInt(clienteId)} AND id_empresa = ${this.prisma.empresaId} FOR UPDATE`;
+    await tx.$queryRaw`SELECT id_puesto FROM puestos WHERE id_puesto = ${BigInt(dto.id_puesto)} AND id_empresa = ${this.prisma.empresaId} FOR UPDATE`;
 
     await this.ensureClienteExists(clienteId);
     await this.ensurePuestoExists(dto.id_puesto);
@@ -430,7 +431,7 @@ export class ClientesService {
 
   async removePuesto(clienteId: number, puestoId: number, ocupacionId?: number) {
     return this.prisma.scoped.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id_puesto FROM puestos WHERE id_puesto = ${BigInt(puestoId)} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id_puesto FROM puestos WHERE id_puesto = ${BigInt(puestoId)} AND id_empresa = ${this.prisma.empresaId} FOR UPDATE`;
       const relaciones = await tx.clientes_puestos.findMany({ where: { id_cliente: clienteId, id_puesto: puestoId, id_cliente_puesto: ocupacionId, estado: true, fecha_fin: null } });
       if (!relaciones.length) throw new NotFoundException('Ocupación vigente no encontrada.');
       if (relaciones.length !== 1) throw new ConflictException('Hay varias secciones; indica id_cliente_puesto.');
@@ -464,6 +465,10 @@ export class ClientesService {
     // Retornar un array plano con seccion y puestos
     return cliente.clientes_puestos.map(cp => ({
       id_cliente_puesto: cp.id_cliente_puesto,
+      id_cliente: clienteId,
+      id_puesto: cp.puestos.id_puesto,
+      estado: true,
+      fecha_fin: null,
       fecha_inicio: cp.fecha_inicio,
       seccion: cp.seccion,
       puestos: cp.puestos

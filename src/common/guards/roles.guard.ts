@@ -17,28 +17,10 @@ export class RolesGuard implements CanActivate {
         }
 
         const request = context.switchToHttp().getRequest();
-        const user = request.user; // Ya lo dejó el SupabaseAuthGuard
-
-        if (!user || !user.email) {
-            throw new ForbiddenException('Usuario no autenticado');
-        }
-
-        // Obtener el usuario de la BD con sus roles
-        const dbUser = await this.prisma.usuarios.findFirst({
-            where: { email: user.email, estado: true },
-            include: { usuarios_roles: { include: { roles_usuarios: true } } },
-        });
-
-        if (!dbUser) {
-            throw new ForbiddenException('Usuario no registrado en el sistema');
-        }
-
-        const userRoles = dbUser.usuarios_roles.map(ur => ur.roles_usuarios.nombre);
-        const hasRole = requiredRoles.some(role => userRoles.includes(role));
-
-        if (!hasRole) {
-            throw new ForbiddenException('No tienes permiso para acceder a este recurso');
-        }
+        const actor = request.actor;
+        if (!actor) throw new ForbiddenException('Usuario no autenticado');
+        const hasRole = requiredRoles.some(role => actor.roles.includes(role.toLowerCase()));
+        if (!hasRole) throw new ForbiddenException('No tienes permiso para acceder a este recurso');
 
         return true;
     }

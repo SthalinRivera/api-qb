@@ -41,7 +41,7 @@ export class ClientesController {
     if (query.page) {
       return this.clientesService.findAllPaginated(query);
     }
-    return this.clientesService.findAll(query.buscar);
+    return this.clientesService.findAll(query.buscar, query);
   }
 
   @Get('all')
@@ -109,8 +109,8 @@ export class ClientesController {
   removePuesto(
     @Param('id', ParseIntPipe) id: number,
     @Param('puestoId', ParseIntPipe) puestoId: number,
-    @Query('id_cliente_puesto') ocupacionId?: string,
+    @Query('id_cliente_puesto', new ParseIntPipe({ optional: true })) ocupacionId?: number,
   ) {
-    return this.clientesService.removePuesto(id, puestoId, ocupacionId ? Number(ocupacionId) : undefined);
+    return this.clientesService.removePuesto(id, puestoId, ocupacionId);
   }
 }

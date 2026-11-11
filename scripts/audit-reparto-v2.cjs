@@ -13,7 +13,8 @@ const db = new Client({ connectionString: process.env.DATABASE_URL, connectionTi
     'Revisar evidencia de salida e inicio físico; ausencia de entrega no demuestra tránsito' AS criterio
     FROM operaciones_carga o WHERE estado='repartiendo'`)).rows;
   report.guias_duplicadas = (await db.query("SELECT id_empresa,id_item_reparto,count(*) FROM guias_operativas WHERE estado NOT IN ('anulada','reemplazada') GROUP BY id_empresa,id_item_reparto HAVING count(*)>1")).rows;
-  report.documentos_sin_snapshot = (await db.query('SELECT count(*) FROM guias_operativas')).rows;
+  const snapshot = await db.query("SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='guias_operativas' AND column_name='cobertura'");
+  report.documentos_sin_snapshot = (await db.query('SELECT count(*) FROM guias_operativas' + (snapshot.rowCount ? ' WHERE cobertura IS NULL' : ''))).rows;
   report.relaciones_empresa = (await db.query(`SELECT
     (SELECT count(*) FROM detalle_carga d JOIN operaciones_carga o USING(id_operacion) WHERE d.id_empresa<>o.id_empresa) AS cargas,
     (SELECT count(*) FROM items_reparto i JOIN detalle_carga d USING(id_detalle_carga) JOIN clientes c ON c.id_cliente=i.id_cliente_receptor JOIN puestos p USING(id_puesto) WHERE i.id_empresa<>d.id_empresa OR i.id_empresa<>c.id_empresa OR i.id_empresa<>p.id_empresa) AS destinos,

@@ -127,6 +127,7 @@ model detalle_carga {
   items_reparto           items_reparto[]
 
   @@index([id_operacion], map: "idx_detalle_carga_operacion")
+  @@unique([id_operacion, orden_carga], map: "detalle_orden_operacion")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.

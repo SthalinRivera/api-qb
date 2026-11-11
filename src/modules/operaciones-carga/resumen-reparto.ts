@@ -22,7 +22,7 @@ export function resumenReparto(cargas: any[]) {
       const desgloseInvalido = requiereCalidad && (desglose !== item.cantidad_asignada || (item.items_reparto_detalle || []).some((d: any) => !calidades.some((c: any) => String(c.id_detalle_carga_calidad) === String(d.id_detalle_carga_calidad))));
       return { id_item_reparto: item.id_item_reparto, asignadas: item.cantidad_asignada, recibidas, resueltas,
         saldo: Math.max(0, item.cantidad_asignada - recibidas - resueltas), exceso: Math.max(0, recibidas + resueltas - item.cantidad_asignada),
-        desgloseInvalido, resuelto: item.cantidad_asignada > 0 && recibidas + resueltas === item.cantidad_asignada };
+        destinoIncompleto: !item.id_cliente_receptor || !item.id_puesto || item.cantidad_asignada <= 0, desgloseInvalido, resuelto: item.cantidad_asignada > 0 && recibidas + resueltas === item.cantidad_asignada };
     });
     return { id_detalle_carga: carga.id_detalle_carga, cargadas: carga.cantidad_jabas, asignadas: asignado,
       sinAsignar: Math.max(0, carga.cantidad_jabas - asignado), excesoAsignacion: Math.max(0, asignado - carga.cantidad_jabas),
@@ -33,11 +33,12 @@ export function resumenReparto(cargas: any[]) {
   const sumar = (key: string) => lineas.reduce((s, l) => s + l[key], 0);
   const desglosesIncompletos = destinos.filter((i) => i.desgloseInvalido).length;
   const excesosCalidad = lineas.flatMap((l) => l.saldosCalidad).reduce((s, c) => s + c.exceso, 0);
-  const preparada = lineas.length > 0 && !sumar('sinAsignar') && !sumar('excesoAsignacion') && !sumar('sinClasificar') && !sumar('excesoClasificacion') && !desglosesIncompletos && !excesosCalidad;
+  const destinosIncompletos = destinos.filter(i => i.destinoIncompleto).length;
+  const preparada = lineas.length > 0 && !destinosIncompletos && !sumar('sinAsignar') && !sumar('excesoAsignacion') && !sumar('sinClasificar') && !sumar('excesoClasificacion') && !desglosesIncompletos && !excesosCalidad;
   return { lineas, jabasCargadas: sumar('cargadas'), jabasAsignadas: sumar('asignadas'),
     jabasSinAsignar: sumar('sinAsignar'), excesosAsignacion: sumar('excesoAsignacion'),
     jabasSinClasificar: sumar('sinClasificar'), excesosClasificacion: sumar('excesoClasificacion'), excesosCalidad,
-    desglosesIncompletos, puestosDistintos: puestos.size, totalItems: destinos.length,
+    desglosesIncompletos, destinosIncompletos, puestosDistintos: puestos.size, totalItems: destinos.length,
     itemsResueltos: destinos.filter((i) => i.resuelto).length,
     saldoEntrega: destinos.reduce((s, i) => s + i.saldo, 0), excesosEntrega: destinos.reduce((s, i) => s + i.exceso, 0),
     progreso: destinos.length ? Math.round(destinos.filter((i) => i.resuelto).length * 100 / destinos.length) : 0,

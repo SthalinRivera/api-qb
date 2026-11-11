@@ -13,7 +13,6 @@ import { UpdateOperacionCargaDto } from './dto/update-operaciones-carga.dto';
 import { QueryOperacionesCargaDto } from './dto/query-operaciones-carga.dto';
 import {
   cargaEditable,
-  operacionCancelada,
   resumenFlujo,
 } from './flujo-operacion';
 import { GuiasOperativasService } from '../guias-operativas/guias-operativas.service';
@@ -129,7 +128,7 @@ export class OperacionesCargaService {
     const operacion = await this.findOne(id);
     if (!cargaEditable(operacion.estado)) {
       throw new BadRequestException(
-        'No se puede modificar una operación en tránsito o cancelada',
+        'No se puede modificar una operación fuera de preparación',
       );
     }
 
@@ -216,7 +215,7 @@ export class OperacionesCargaService {
     const [total, operaciones] = await this.prisma.scoped.$transaction([
       this.prisma.scoped.operaciones_carga.count({ where }),
       this.prisma.scoped.operaciones_carga.findMany({ where, skip: (page - 1) * limit, take: limit, orderBy: [{ fecha_carga: 'desc' }, { id_operacion: 'desc' }], include: {
-        camiones: true, detalle_carga: { include: { detalle_carga_calidades: true, items_reparto: { include: { items_reparto_detalle: true, entregas: true, resoluciones_reparto: true } } } },
+        camiones: true, sedes_operaciones_carga_id_sede_origenTosedes: true, sedes_operaciones_carga_id_sede_destinoTosedes: true, detalle_carga: { include: { detalle_carga_calidades: true, items_reparto: { include: { items_reparto_detalle: true, entregas: true, resoluciones_reparto: true } } } },
       } }),
     ]);
     return { data: operaciones.map(({ detalle_carga, ...op }) => ({ ...op, resumen: resumenReparto(detalle_carga) })), total, page, limit };

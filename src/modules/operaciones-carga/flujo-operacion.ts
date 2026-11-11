@@ -1,7 +1,6 @@
 export const cargaEditable = (estado: string | null) =>
   estado === 'pendiente' || estado === 'en_curso';
-export const operacionCancelada = (estado: string | null) =>
-  estado === 'cancelado' || estado === 'cancelada';
+
 
 interface EntregaFlujo {
   cantidad_entregada: number;

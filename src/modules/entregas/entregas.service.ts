@@ -1,9 +1,5 @@
 import { validarEntrega } from './validar-entrega';
-import {
-  cargaEditable,
-  operacionCancelada,
-  resumenFlujo,
-} from '../operaciones-carga/flujo-operacion';
+
 import {
   Injectable,
   NotFoundException,
@@ -75,7 +71,7 @@ export class EntregasService {
       if (!referencia)
         throw new NotFoundException('Destino de entrega no encontrado.');
       // Serializa el registro y evita duplicados por doble clic o solicitudes simultáneas.
-      await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${referencia.detalle_carga.id_operacion} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${referencia.detalle_carga.id_operacion} AND id_empresa = ${this.prisma.empresaId} FOR UPDATE`;
       const item = await tx.items_reparto.findUnique({
         where: { id_item_reparto: createDto.id_item_reparto },
         include: {
@@ -243,7 +239,7 @@ export class EntregasService {
     return this.prisma.scoped.$transaction(async (tx) => {
     const ref = await tx.entregas.findUnique({ where: { id_entrega: id }, include: { items_reparto: { include: { detalle_carga: true } } } });
     if (!ref) throw new NotFoundException('Entrega no encontrada.');
-    await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${ref.items_reparto.detalle_carga.id_operacion} FOR UPDATE`;
+    await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${ref.items_reparto.detalle_carga.id_operacion} AND id_empresa = ${this.prisma.empresaId} FOR UPDATE`;
 
     const entrega = await tx.entregas.findUniqueOrThrow({ where: { id_entrega: id }, include: { items_reparto: true } });
     const op = await tx.operaciones_carga.findUniqueOrThrow({ where: { id_operacion: (await tx.detalle_carga.findUniqueOrThrow({ where: { id_detalle_carga: entrega.items_reparto.id_detalle_carga } })).id_operacion } });
