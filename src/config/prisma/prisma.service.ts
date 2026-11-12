@@ -10,6 +10,8 @@ import { Pool } from 'pg';   // 👈 necesario
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit {
+    private readonly baseClient: PrismaClient;
+
     constructor() {
         // 1. Crear el pool de conexiones usando la URL
         const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -17,6 +19,9 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
         const adapter = new PrismaPg(pool);
         // 3. Pasar el adaptador al cliente
         super({ adapter });
+        // Keep the public Prisma proxy: getters run with the internal instance,
+        // which does not expose model delegates such as usuarios.findFirst.
+        this.baseClient = this;
     }
 
     get empresaId() { return actorActual().empresaId; }
@@ -24,7 +29,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
     get scoped(): PrismaClient {
         actorActual();
         if (!this.scopedClient) {
-            const base = this;
+            const base = this.baseClient;
             const extended = this.$extends({ query: { $allModels: {
                 async $allOperations({ model, operation, args, query }) {
                     await prepararConsulta(model, operation, args, actorActual(), transactionContext.getStore() || base);

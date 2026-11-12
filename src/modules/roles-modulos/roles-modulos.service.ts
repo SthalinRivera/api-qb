@@ -11,34 +11,36 @@ export class RolesModulosService {
         const moduloIds = dto.modulo_ids.map((id) => BigInt(id));
         const usuarioAsigno = dto.usuario_asigno ? BigInt(dto.usuario_asigno) : null;
 
-        // Verificar que el rol existe
-        const rol = await this.prisma.scoped.roles_usuarios.findUnique({
-            where: { id_rol_usuario: rolId },
+        return this.prisma.scoped.$transaction(async (tx) => {
+            // Verificar que el rol existe
+            const rol = await tx.roles_usuarios.findUnique({
+                where: { id_rol_usuario: rolId },
+            });
+            if (!rol) throw new NotFoundException(`Rol con ID ${dto.rol_id} no encontrado`);
+
+            // Eliminar asignaciones actuales del rol
+            await tx.roles_modulos.deleteMany({
+                where: { rol_id: rolId },
+            });
+
+            // Crear nuevas asignaciones
+            if (moduloIds.length === 0) {
+                return { message: 'Módulos desasignados correctamente', count: 0 };
+            }
+
+            const data = moduloIds.map((moduloId) => ({
+                rol_id: rolId,
+                modulo_id: moduloId,
+                usuario_asigno: usuarioAsigno,
+            }));
+
+            const result = await tx.roles_modulos.createMany({
+                data,
+                skipDuplicates: true,
+            });
+
+            return { message: 'Módulos asignados correctamente', count: result.count };
         });
-        if (!rol) throw new NotFoundException(`Rol con ID ${dto.rol_id} no encontrado`);
-
-        // Eliminar asignaciones actuales del rol
-        await this.prisma.scoped.roles_modulos.deleteMany({
-            where: { rol_id: rolId },
-        });
-
-        // Crear nuevas asignaciones
-        if (moduloIds.length === 0) {
-            return { message: 'Módulos desasignados correctamente', count: 0 };
-        }
-
-        const data = moduloIds.map((moduloId) => ({
-            rol_id: rolId,
-            modulo_id: moduloId,
-            usuario_asigno: usuarioAsigno,
-        }));
-
-        const result = await this.prisma.scoped.roles_modulos.createMany({
-            data,
-            skipDuplicates: true,
-        });
-
-        return { message: 'Módulos asignados correctamente', count: result.count };
     }
 
     async toggleModulo(rolId: number, moduloId: number, usuarioAsigno?: number) {
