@@ -10,23 +10,12 @@ import {
 import { Type } from 'class-transformer';
 
 export class CreateOperacionCargaDto {
-    @IsOptional()
     @IsString()
     @Matches(/^\d{6}$/)
-    id_ubigeo_origen?: string;
-    @IsOptional()
+    id_ubigeo_origen!: string;
     @IsString()
     @Matches(/^\d{6}$/)
-    id_ubigeo_destino?: string;
-
-    @IsInt()
-    @Min(1)
-    id_sede_origen!: number;
-
-    @IsInt()
-    @Min(1)
-    @IsOptional()
-    id_sede_destino?: number;
+    id_ubigeo_destino!: string;
 
     @IsInt()
     @Min(1)

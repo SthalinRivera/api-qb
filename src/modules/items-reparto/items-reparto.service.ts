@@ -83,7 +83,7 @@ export class ItemsRepartoService {
             operaciones_carga: {
               include: {
                 camiones: true,
-                sedes_operaciones_carga_id_sede_origenTosedes: true,
+                distritos_operaciones_carga_id_ubigeo_origenTodistritos: true,
               },
             },
           },

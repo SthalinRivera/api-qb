@@ -1,14 +1,12 @@
-import { Matches } from 'class-validator';
+import { IsIn, Matches } from 'class-validator';
 // src/modules/clientes/dto/create-full-cliente.dto.ts
 import { IsString, IsNotEmpty, IsOptional, IsNumber, IsArray, ValidateNested, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 
-class SedeAsignacionDto {
-    @IsOptional() @IsString() @Matches(/^\d{6}$/) id_ubigeo?: string;
-    @IsNumber()
-    id_sede!: number;
+class UbicacionAsignacionDto {
+    @IsString() @Matches(/^\d{6}$/) id_ubigeo!: string;
 
-    @IsString()
+    @IsIn(['emisor', 'receptor'])
     tipo_relacion!: string;
 }
 
@@ -50,9 +48,9 @@ export class CreateFullClienteDto {
 
     @IsArray()
     @ValidateNested({ each: true })
-    @Type(() => SedeAsignacionDto)
+    @Type(() => UbicacionAsignacionDto)
     @IsOptional()
-    sedes?: SedeAsignacionDto[];
+    ubicaciones?: UbicacionAsignacionDto[];
 
     @IsArray()
     @ValidateNested({ each: true })

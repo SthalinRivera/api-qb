@@ -1,3 +1,4 @@
+import { Matches } from 'class-validator';
 import { IsOptional, IsString, IsDateString, IsEnum, IsNumber } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
@@ -18,11 +19,10 @@ export class QueryReportesDto {
   @IsString()
   estado?: string;
 
-  @ApiPropertyOptional({ description: 'ID de sede' })
+  @ApiPropertyOptional({ description: 'Código ubigeo de seis dígitos' })
   @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  id_sede?: number;
+  @Matches(/^\d{6}$/)
+  id_ubigeo?: string;
 
   @ApiPropertyOptional({ description: 'ID de cliente' })
   @IsOptional()

@@ -19,3 +19,15 @@ describe('Aislamiento por empresa', () => {
     requestContext.run({ ...actor, roles: ['supervisor'], repartidor: false }, () => expect(exigirSupervisor).not.toThrow());
   });
 });
+
+describe('Catálogos compartidos de ubicaciones',()=>{
+ it('acota puestos por vínculos empresa-lugar',()=>expect(alcanceModelo('puestos',actor)).toEqual({lugares_operativos:{empresa_lugares:{some:{id_empresa:7n}}}}));
+ it('filtra listas anidadas de clientes por empresa',async()=>{
+  const args:any={include:{cliente_distrito:{include:{clientes:true}}}};
+  await prepararConsulta('distritos','findMany',args,actor,{});
+  expect(args.include.cliente_distrito.where.AND[1]).toEqual({id_empresa:7n});
+ });
+ it('rechaza modificar un lugar compartido con otra empresa',async()=>{
+  await expect(prepararConsulta('lugares_operativos','update',{where:{id_lugar:1n},data:{nombre:'Otro'}},actor,{lugares_operativos:{findFirst:async()=>({id_lugar:1n})}})).rejects.toThrow('compartido');
+ });
+});

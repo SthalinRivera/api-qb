@@ -14,7 +14,7 @@ import { ClientesService } from './clientes.service';
 import { CreateClienteDto } from './dto/create-cliente.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
 import { QueryClientesDto } from './dto/query-clientes.dto';
-import { ClienteSedeDto } from './dto/cliente-sede.dto';
+import { ClienteUbicacionDto } from './dto/cliente-ubicacion.dto';
 import { AsignarPuestoDto } from './dto/asignar-puesto.dto';
 import { CreateFullClienteDto } from './dto/create-full-cliente.dto';
 import { UpdateFullClienteDto } from './dto/update-full-cliente.dto';
@@ -69,29 +69,29 @@ export class ClientesController {
     return this.clientesService.changeState(id, estado);
   }
 
-  // Sedes
-  @Get(':id/sedes')
-  getSedes(@Param('id', ParseIntPipe) id: number) {
-    return this.clientesService.getSedesByCliente(id);
+  // Ubicaciones
+  @Get(':id/ubicaciones')
+  getUbicaciones(@Param('id', ParseIntPipe) id: number) {
+    return this.clientesService.getUbicacionesByCliente(id);
   }
 
-  @Post('sedes')
-  associateSede(@Body() dto: ClienteSedeDto) {
-    return this.clientesService.associateSede(dto);
+  @Post('ubicaciones')
+  associateUbicacion(@Body() dto: ClienteUbicacionDto) {
+    return this.clientesService.associateUbicacion(dto);
   }
 
-  @Patch(':id/sedes/:sedeId')
-  updateSedeRelacion(
+  @Patch(':id/ubicaciones/:relacionId')
+  updateUbicacionRelacion(
     @Param('id', ParseIntPipe) id: number,
-    @Param('sedeId', ParseIntPipe) sedeId: number,
+    @Param('relacionId', ParseIntPipe) relacionId: number,
     @Body('tipo_relacion') tipoRelacion: string,
   ) {
-    return this.clientesService.updateSedeRelacion(id, sedeId, tipoRelacion);
+    return this.clientesService.updateUbicacionRelacion(id, relacionId, tipoRelacion);
   }
 
-  @Delete(':id/sedes/:sedeId')
-  removeSede(@Param('id', ParseIntPipe) id: number, @Param('sedeId', ParseIntPipe) sedeId: number) {
-    return this.clientesService.removeSede(id, sedeId);
+  @Delete(':id/ubicaciones/:relacionId')
+  removeUbicacion(@Param('id', ParseIntPipe) id: number, @Param('relacionId', ParseIntPipe) relacionId: number) {
+    return this.clientesService.removeUbicacion(id, relacionId);
   }
 
   // Puestos

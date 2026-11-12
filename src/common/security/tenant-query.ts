@@ -1,4 +1,4 @@
-import { tenantRelations } from './tenant-relations.generated';
+import { tenantRelations, listRelations } from './tenant-relations.generated';
 import { ForbiddenException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Actor } from './request-context';
@@ -7,6 +7,8 @@ const modelos = new Map(Prisma.dmmf.datamodel.models.map((m) => [m.name, m]));
 export function alcanceModelo(model: string, actor: Actor): Record<string, any> {
   const scoped: Record<string, any> = {};
   if (modelos.get(model)?.fields.some((f) => f.name === 'id_empresa')) scoped.id_empresa = actor.empresaId;
+  if (model === 'lugares_operativos') scoped.empresa_lugares = { some: { id_empresa: actor.empresaId } };
+  if (model === 'puestos') scoped.lugares_operativos = { empresa_lugares: { some: { id_empresa: actor.empresaId } } };
   if (model === 'usuarios_roles') scoped.usuarios = { id_empresa: actor.empresaId };
   if (actor.repartidor) {
     const op = { id_repartidor_asignado: actor.usuarioId };
@@ -28,6 +30,28 @@ export async function prepararConsulta(model: string, operation: string, args: a
   const scope = alcanceModelo(model, actor);
   if (operation.startsWith('find') || ['count','aggregate','groupBy','update','updateMany','updateManyAndReturn','delete','deleteMany','upsert'].includes(operation)) {
     args.where = { ...args.where, AND: [args.where?.AND || {}, scope] };
+  }
+  // Scope nested lists too: shared places must not expose another company's clients.
+  const scopeRelations = (name: string, selection: any) => {
+    if (!selection) return;
+    for (const field of modelos.get(name)?.fields || []) {
+      if (field.kind !== 'object' || !selection[field.name]) continue;
+      const nestedScope = alcanceModelo(field.type, actor);
+      if (listRelations[name]?.includes(field.name) && Object.keys(nestedScope).length) {
+        if (selection[field.name] === true) selection[field.name] = {};
+        const nested = selection[field.name];
+        nested.where = { ...nested.where, AND: [nested.where?.AND || {}, nestedScope] };
+      }
+      const nested = selection[field.name];
+      scopeRelations(field.type, nested.include);
+      scopeRelations(field.type, nested.select);
+    }
+  };
+  scopeRelations(model, args.include);
+  scopeRelations(model, args.select);
+  if (['lugares_operativos', 'puestos'].includes(model) && ['update','updateMany','delete','deleteMany','upsert'].includes(operation)) {
+    const shared = model === 'puestos' ? { lugares_operativos: { empresa_lugares: { some: { id_empresa: { not: actor.empresaId } } } } } : { empresa_lugares: { some: { id_empresa: { not: actor.empresaId } } } };
+    if (await base[model].findFirst({ where: { AND: [args.where || {}, shared] } })) throw new ForbiddenException('El catálogo está compartido con otra empresa y no se puede modificar desde esta cuenta.');
   }
   const validarDatos = async (data: any) => {
     if (!data) return;

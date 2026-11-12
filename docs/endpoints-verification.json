@@ -1,0 +1,532 @@
+[
+  {
+    "path": "/",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/profile",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/ubicaciones/departamentos",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/ubigeo/departamentos",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/ubicaciones/provincias",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/ubigeo/provincias",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/ubicaciones",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/ubigeo",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/ubicaciones/distritos",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/ubigeo/distritos",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/ubicaciones/{ubigeo}",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/ubigeo/{ubigeo}",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/auth/profile",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/empresas",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/empresas/{id}",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/usuarios",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/usuarios/{id}",
+    "status": 404,
+    "contract": true
+  },
+  {
+    "path": "/usuarios/{id}/roles",
+    "status": 404,
+    "contract": true
+  },
+  {
+    "path": "/roles-usuarios",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/roles-usuarios/{id}",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/clientes",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/clientes/all",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/clientes/asignaciones-puestos",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/clientes/{id}",
+    "status": 404,
+    "contract": true
+  },
+  {
+    "path": "/clientes/{id}/ubicaciones",
+    "status": 404,
+    "contract": true
+  },
+  {
+    "path": "/clientes/{id}/puestos",
+    "status": 404,
+    "contract": true
+  },
+  {
+    "path": "/frutas",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/frutas/{id}",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/variedades",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/variedades/{id}",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/variedades/frutas/{frutaId}/variedades",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/calidades",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/calidades/{id}",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/tipos-jaba",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/tipos-jaba/{id}",
+    "status": 404,
+    "contract": true
+  },
+  {
+    "path": "/camiones",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/camiones/{id}",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/lugares-operativos",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/lugares-operativos/{id}",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/lugares-operativos/ubicaciones/{ubigeo}/lugares",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/puestos",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/puestos/mercado/{idMercado}",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/puestos/{id}",
+    "status": 404,
+    "contract": true
+  },
+  {
+    "path": "/operaciones-carga/resumen-repartos",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/operaciones-carga/{id}/reparto",
+    "status": 404,
+    "contract": true
+  },
+  {
+    "path": "/operaciones-carga/detalles-pendientes",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/operaciones-carga",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/operaciones-carga/{id}/detalles",
+    "status": 404,
+    "contract": true
+  },
+  {
+    "path": "/operaciones-carga/{id}/detalles-reparto-pendientes",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/operaciones-carga/{id}",
+    "status": 404,
+    "contract": true
+  },
+  {
+    "path": "/detalle-carga/{id}",
+    "status": 404,
+    "contract": true
+  },
+  {
+    "path": "/detalle-carga/{id}/calidades",
+    "status": 404,
+    "contract": true
+  },
+  {
+    "path": "/detalle-carga/{id}/repartos",
+    "status": 404,
+    "contract": true
+  },
+  {
+    "path": "/items-reparto",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/items-reparto/detalle",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/items-reparto/{id}",
+    "status": 404,
+    "contract": true
+  },
+  {
+    "path": "/items-reparto/{id}/detalle",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/items-reparto/detalle/{detalleId}",
+    "status": 404,
+    "contract": true
+  },
+  {
+    "path": "/items-reparto/detalle-carga/{detalleId}",
+    "status": 404,
+    "contract": true
+  },
+  {
+    "path": "/guias-operativas",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/guias-operativas/{id}",
+    "status": 404,
+    "contract": true
+  },
+  {
+    "path": "/entregas",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/entregas/{id}",
+    "status": 404,
+    "contract": true
+  },
+  {
+    "path": "/dashboard",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/incidencias",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/incidencias/{id}",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/jabas/por-pagar",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/jabas/por-pagar/{id}",
+    "status": 404,
+    "contract": true
+  },
+  {
+    "path": "/jabas/por-cobrar",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/jabas/por-cobrar/{id}",
+    "status": 404,
+    "contract": true
+  },
+  {
+    "path": "/jabas/recuperaciones/{idJabaCobrar}",
+    "status": 404,
+    "contract": true
+  },
+  {
+    "path": "/jabas/devoluciones-emisor/{idJabaPagar}",
+    "status": 404,
+    "contract": true
+  },
+  {
+    "path": "/evidencias",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/evidencias/entity",
+    "status": 500,
+    "contract": true
+  },
+  {
+    "path": "/evidencias/stats",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/evidencias/{id}",
+    "status": 404,
+    "contract": true
+  },
+  {
+    "path": "/logs-actividad",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/logs-actividad/tables",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/logs-actividad/stats",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/logs-actividad/{id}",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/categorias",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/categorias/{id}",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/modulos",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/modulos/categoria/{idCategoria}",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/modulos/{id}",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/roles-modulos/rol/{rolId}",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/roles-modulos/modulo/{moduloId}",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/roles-modulos/usuario/{usuarioId}",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/reportes/cargas-por-fecha",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/reportes/detalle-carga-por-operacion",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/reportes/items-reparto-por-detalle",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/reportes/guias",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/reportes/entregas",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/reportes/incidencias",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/reportes/jabas-por-pagar",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/reportes/jabas-por-cobrar",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/reportes/recuperaciones",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/reportes/devoluciones",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/reportes/clientes-por-ubicacion",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/reportes/clientes-por-puesto",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/reportes/historial-asignacion-puestos",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/reportes/inventario",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/reportes/usuarios-roles",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/reportes/actividad-usuarios",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/reportes/modulos-por-rol",
+    "status": 200,
+    "contract": true
+  },
+  {
+    "path": "/reportes/dashboard-graficas",
+    "status": 200,
+    "contract": true
+  }
+]

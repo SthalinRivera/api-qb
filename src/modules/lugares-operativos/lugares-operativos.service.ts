@@ -2,115 +2,58 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { PrismaService } from '../../config/prisma/prisma.service';
 import { CreateLugarOperativoDto } from './dto/create-lugar-operativo.dto';
 import { UpdateLugarOperativoDto } from './dto/update-lugar-operativo.dto';
-
 @Injectable()
 export class LugaresOperativosService {
-  constructor(private readonly prisma: PrismaService) { }
-
-  async create(createDto: CreateLugarOperativoDto) {
-    const empresa = await this.prisma.scoped.empresas.findUnique({
-      where: { id_empresa: BigInt(createDto.id_empresa) },
-    });
-    if (!empresa) throw new NotFoundException('Empresa no encontrada');
-
-    const sede = await this.prisma.scoped.sedes.findFirst({
-      where: {
-        id_sede: BigInt(createDto.id_sede),
-        id_empresa: BigInt(createDto.id_empresa),
-      },
-    });
-    if (!sede) throw new NotFoundException('Sede no encontrada o no pertenece a la empresa');
-
-    return this.prisma.scoped.lugares_operativos.create({
-      data: {
-        id_empresa: BigInt(createDto.id_empresa),
-        id_sede: BigInt(createDto.id_sede),
-        id_ubigeo: createDto.id_ubigeo,
-        nombre: createDto.nombre,
-        direccion_referencia: createDto.direccion_referencia,
-        observaciones: createDto.observaciones,
-        estado: createDto.estado ?? true,
-        tipo_lugar: createDto.tipo_lugar,
-      },
-      include: { empresas: true, sedes: true },
+  constructor(private readonly prisma: PrismaService) {}
+  private empresa(id?: number) {
+    if (id !== undefined && BigInt(id) !== this.prisma.empresaId) throw new ForbiddenException('Empresa no autorizada');
+  }
+  private include() { return { distritos: true, empresa_lugares: { where: { id_empresa: this.prisma.empresaId } } }; }
+  private present(lugar: any) {
+    const { empresa_lugares, ...data } = lugar;
+    return { ...data, estado_catalogo: data.estado, estado: empresa_lugares?.[0]?.estado ?? false };
+  }
+  async create(dto: CreateLugarOperativoDto) {
+    this.empresa(dto.id_empresa);
+    // The catalog is shared. Link a matching place without overwriting its data.
+    return this.prisma.$transaction(async tx => {
+      const distrito = await tx.distritos.findUnique({ where: { id_ubigeo: dto.id_ubigeo } });
+      if (!distrito) throw new NotFoundException('Distrito no encontrado');
+      const lugar = await tx.lugares_operativos.upsert({
+        where: { id_ubigeo_nombre: { id_ubigeo: dto.id_ubigeo, nombre: dto.nombre } },
+        create: { id_ubigeo: dto.id_ubigeo, nombre: dto.nombre, tipo_lugar: dto.tipo_lugar, direccion_referencia: dto.direccion_referencia, observaciones: dto.observaciones, estado: true }, update: {},
+      });
+      await tx.empresa_lugares.upsert({ where: { id_empresa_id_lugar: { id_empresa: this.prisma.empresaId, id_lugar: lugar.id_lugar } }, create: { id_empresa: this.prisma.empresaId, id_lugar: lugar.id_lugar, estado: dto.estado ?? true }, update: { estado: dto.estado ?? true } });
+      return { ...lugar, estado_catalogo: lugar.estado, estado: dto.estado ?? true };
     });
   }
-
   async findAll(empresaId: number, estado?: boolean) {
-    const where: any = { id_empresa: BigInt(empresaId) };
-    if (estado !== undefined) where.estado = estado;
-    return this.prisma.scoped.lugares_operativos.findMany({
-      where,
-      include: { empresas: true, sedes: true },
-      orderBy: { nombre: 'asc' },
-    });
+    this.empresa(empresaId);
+    return (await this.prisma.scoped.lugares_operativos.findMany({ where: { empresa_lugares: { some: { id_empresa: this.prisma.empresaId, estado } } }, include: this.include(), orderBy: { nombre: 'asc' } })).map(lugar => this.present(lugar));
   }
-
   async findOne(id: number, empresaId?: number) {
-    const where: any = { id_lugar: BigInt(id) };
-    if (empresaId) where.id_empresa = BigInt(empresaId);
-
-    const lugar = await this.prisma.scoped.lugares_operativos.findFirst({
-      where,
-      include: { empresas: true, sedes: true },
-    });
-    if (!lugar) throw new NotFoundException(`Lugar operativo con ID ${id} no encontrado`);
-    return lugar;
+    this.empresa(empresaId);
+    const lugar = await this.prisma.scoped.lugares_operativos.findUnique({ where: { id_lugar: BigInt(id) }, include: this.include() });
+    if (!lugar) throw new NotFoundException('Lugar operativo no encontrado');
+    return this.present(lugar);
   }
-
-  async update(id: number, updateDto: UpdateLugarOperativoDto) {
-    const existing = await this.prisma.scoped.lugares_operativos.findUnique({
-      where: { id_lugar: BigInt(id) },
+  async update(id: number, dto: UpdateLugarOperativoDto) {
+    this.empresa(dto.id_empresa);
+    await this.findOne(id);
+    const { id_empresa, estado, ...data } = dto;
+    return this.prisma.scoped.$transaction(async tx => {
+      if (Object.values(data).some(value => value !== undefined)) await tx.lugares_operativos.update({ where: { id_lugar: BigInt(id) }, data });
+      if (estado !== undefined) await tx.empresa_lugares.update({ where: { id_empresa_id_lugar: { id_empresa: this.prisma.empresaId, id_lugar: BigInt(id) } }, data: { estado } });
+      return this.present(await tx.lugares_operativos.findUnique({ where: { id_lugar: BigInt(id) }, include: this.include() }));
     });
-    if (!existing) throw new NotFoundException(`Lugar operativo con ID ${id} no encontrado`);
-
-    if (updateDto.id_empresa && existing.id_empresa !== BigInt(updateDto.id_empresa)) {
-      throw new ForbiddenException('No tiene permiso para modificar este registro');
-    }
-
-    try {
-      const updated = await this.prisma.scoped.lugares_operativos.update({
-        where: { id_lugar: BigInt(id) },
-        data: {
-          id_sede: updateDto.id_sede ? BigInt(updateDto.id_sede) : undefined,
-          id_ubigeo: updateDto.id_ubigeo,
-          nombre: updateDto.nombre,
-          direccion_referencia: updateDto.direccion_referencia,
-          observaciones: updateDto.observaciones,
-          estado: updateDto.estado,
-          tipo_lugar: updateDto.tipo_lugar,
-        },
-        include: { empresas: true, sedes: true },
-      });
-      return updated;
-    } catch (error: any) {
-      if (error.code === 'P2025') throw new NotFoundException(`Lugar operativo con ID ${id} no encontrado`);
-      throw error;
-    }
   }
-
   async changeState(id: number, estado: boolean, empresaId?: number) {
-    if (empresaId) {
-      const existing = await this.prisma.scoped.lugares_operativos.findFirst({
-        where: { id_lugar: BigInt(id), id_empresa: BigInt(empresaId) },
-      });
-      if (!existing) throw new NotFoundException(`Lugar operativo con ID ${id} no encontrado`);
-    }
+    this.empresa(empresaId);
+    await this.findOne(id);
+    // Activation belongs to the company-place link, not the shared catalog.
     return this.update(id, { estado });
   }
-
-  async findBySede(sedeId: number, estado?: boolean) {
-    const sede = await this.prisma.scoped.sedes.findUnique({
-      where: { id_sede: BigInt(sedeId) },
-    });
-    if (!sede) throw new NotFoundException(`Sede con ID ${sedeId} no encontrada`);
-
-    const where: any = { id_sede: BigInt(sedeId) };
-    if (estado !== undefined) where.estado = estado;
-    return this.prisma.scoped.lugares_operativos.findMany({
-      where,
-      include: { empresas: true, sedes: true },
-      orderBy: { nombre: 'asc' },
-    });
+  async findByUbicacion(id_ubigeo: string, estado?: boolean) {
+    return (await this.prisma.scoped.lugares_operativos.findMany({ where: { id_ubigeo, empresa_lugares: { some: { id_empresa: this.prisma.empresaId, estado } } }, include: this.include(), orderBy: { nombre: 'asc' } })).map(lugar => this.present(lugar));
   }
 }

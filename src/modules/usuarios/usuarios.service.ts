@@ -16,17 +16,16 @@ export class UsuariosService {
     });
     if (!empresa) throw new NotFoundException('Empresa no encontrada');
 
-    if (!createUsuarioDto.id_sede) {
-      throw new BadRequestException('La sede es obligatoria');
+    if (!createUsuarioDto.id_ubigeo) {
+      throw new BadRequestException('La ubicación es obligatoria');
     }
 
-    const sede = await this.prisma.scoped.sedes.findFirst({
+    const sede = await this.prisma.scoped.distritos.findFirst({
       where: {
-        id_sede: BigInt(createUsuarioDto.id_sede),
-        id_empresa: BigInt(createUsuarioDto.id_empresa),
+        id_ubigeo: createUsuarioDto.id_ubigeo,
       },
     });
-    if (!sede) throw new NotFoundException('Sede no pertenece a la empresa');
+    if (!sede) throw new NotFoundException('Distrito no encontrado');
 
     return this.prisma.scoped.usuarios.create({
       data: {
@@ -38,7 +37,7 @@ export class UsuariosService {
         avatar_url: createUsuarioDto.avatar_url,
         estado: createUsuarioDto.estado ?? true,
         id_empresa: BigInt(createUsuarioDto.id_empresa),
-        id_sede: BigInt(createUsuarioDto.id_sede),
+        id_ubigeo: createUsuarioDto.id_ubigeo,
       },
     });
   }
@@ -68,13 +67,12 @@ export class UsuariosService {
       if (!empresa) throw new NotFoundException('Empresa no encontrada');
 
       // 2. Validar sede
-      const sede = await tx.sedes.findFirst({
+      const sede = await tx.distritos.findFirst({
         where: {
-          id_sede: BigInt(dto.id_sede),
-          id_empresa: BigInt(dto.id_empresa),
+          id_ubigeo: dto.id_ubigeo,
         },
       });
-      if (!sede) throw new NotFoundException('Sede no válida para la empresa');
+      if (!sede) throw new NotFoundException('Distrito no encontrado');
 
       // 3. Crear usuario
       const usuario = await tx.usuarios.create({
@@ -84,7 +82,7 @@ export class UsuariosService {
           email: dto.email,
           telefono: dto.telefono,
           id_empresa: BigInt(dto.id_empresa),
-          id_sede: BigInt(dto.id_sede),
+          id_ubigeo: dto.id_ubigeo,
           estado: dto.estado ?? true,
         },
       });
@@ -97,7 +95,7 @@ export class UsuariosService {
         where: { id_usuario: usuario.id_usuario },
         include: {
           empresas: true,
-          sedes: true,
+          distritos: true,
           usuarios_roles: {
             include: { roles_usuarios: true },
           },
@@ -123,13 +121,13 @@ export class UsuariosService {
       }
 
       // Validar empresa-sede si se cambia alguno
-      if (dto.id_empresa !== undefined || dto.id_sede !== undefined) {
+      if (dto.id_empresa !== undefined || dto.id_ubigeo !== undefined) {
         const empresaId = dto.id_empresa ?? Number(existing.id_empresa);
-        const sedeId = dto.id_sede ?? Number(existing.id_sede);
-        const sedeValida = await tx.sedes.findFirst({
-          where: { id_sede: BigInt(sedeId), id_empresa: BigInt(empresaId) },
+        const sedeId = dto.id_ubigeo ?? existing.id_ubigeo;
+        const sedeValida = await tx.distritos.findFirst({
+          where: { id_ubigeo: sedeId },
         });
-        if (!sedeValida) throw new BadRequestException('La sede no pertenece a la empresa');
+        if (!sedeValida) throw new BadRequestException('Distrito no encontrado');
       }
 
       // Actualizar datos básicos
@@ -139,7 +137,7 @@ export class UsuariosService {
       if (dto.email !== undefined) updateData.email = dto.email;
       if (dto.telefono !== undefined) updateData.telefono = dto.telefono;
       if (dto.id_empresa !== undefined) updateData.id_empresa = BigInt(dto.id_empresa);
-      if (dto.id_sede !== undefined) updateData.id_sede = BigInt(dto.id_sede);
+      if (dto.id_ubigeo !== undefined) updateData.id_ubigeo = dto.id_ubigeo;
       if (dto.estado !== undefined) updateData.estado = dto.estado;
 
       if (Object.keys(updateData).length > 0) {
@@ -159,7 +157,7 @@ export class UsuariosService {
         where: { id_usuario: BigInt(id) },
         include: {
           empresas: true,
-          sedes: true,
+          distritos: true,
           usuarios_roles: {
             include: { roles_usuarios: true },
           },
@@ -172,7 +170,7 @@ export class UsuariosService {
     return this.prisma.scoped.usuarios.findMany({
       include: {
         empresas: true,
-        sedes: true,
+        distritos: true,
         usuarios_roles: { include: { roles_usuarios: true } },
       },
       orderBy: { id_usuario: 'asc' },
@@ -184,7 +182,7 @@ export class UsuariosService {
       where: { id_usuario: BigInt(id) },
       include: {
         empresas: true,
-        sedes: true,
+        distritos: true,
         usuarios_roles: {
           include: { roles_usuarios: true },
         },
@@ -202,14 +200,13 @@ export class UsuariosService {
         });
         if (!empresa) throw new NotFoundException('Empresa no encontrada');
       }
-      if (updateUsuarioDto.id_sede && updateUsuarioDto.id_empresa) {
-        const sede = await this.prisma.scoped.sedes.findFirst({
+      if (updateUsuarioDto.id_ubigeo) {
+        const sede = await this.prisma.scoped.distritos.findFirst({
           where: {
-            id_sede: BigInt(updateUsuarioDto.id_sede),
-            id_empresa: BigInt(updateUsuarioDto.id_empresa),
+            id_ubigeo: updateUsuarioDto.id_ubigeo,
           },
         });
-        if (!sede) throw new NotFoundException('Sede no pertenece a la empresa');
+        if (!sede) throw new NotFoundException('Distrito no encontrado');
       }
 
       const updated = await this.prisma.scoped.usuarios.update({
@@ -223,7 +220,7 @@ export class UsuariosService {
           avatar_url: updateUsuarioDto.avatar_url,
           estado: updateUsuarioDto.estado,
           id_empresa: updateUsuarioDto.id_empresa ? BigInt(updateUsuarioDto.id_empresa) : undefined,
-          id_sede: updateUsuarioDto.id_sede ? BigInt(updateUsuarioDto.id_sede) : undefined,
+          id_ubigeo: updateUsuarioDto.id_ubigeo ? updateUsuarioDto.id_ubigeo : undefined,
         },
       });
       return updated;

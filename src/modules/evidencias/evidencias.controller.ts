@@ -1,3 +1,6 @@
+import { IsEnum, IsInt, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { TipoEntidadEvidencia } from '../../common/enums';
 // src/modules/evidencias/evidencias.controller.ts
 import {
   Controller,
@@ -18,6 +21,10 @@ import { EvidenciasService } from './evidencias.service';
 import { SupabaseAuthGuard } from 'src/common/guards/supabase-auth.guard';
 import { AuthService } from '../auth/auth.service';
 
+class QueryEntityDto {
+  @IsEnum(TipoEntidadEvidencia) tipo!: TipoEntidadEvidencia;
+  @Type(() => Number) @IsInt() @Min(1) id!: number;
+}
 @Controller('evidencias')
 @UseGuards(SupabaseAuthGuard)
 export class EvidenciasController {

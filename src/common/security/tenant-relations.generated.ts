@@ -24,48 +24,6 @@ export const tenantRelations: Record<string, { name: string; type: string; from:
       ]
     }
   ],
-  "cliente_sede": [
-    {
-      "name": "clientes",
-      "type": "clientes",
-      "from": [
-        "id_cliente"
-      ],
-      "to": [
-        "id_cliente"
-      ]
-    },
-    {
-      "name": "empresas",
-      "type": "empresas",
-      "from": [
-        "id_empresa"
-      ],
-      "to": [
-        "id_empresa"
-      ]
-    },
-    {
-      "name": "sedes",
-      "type": "sedes",
-      "from": [
-        "id_sede"
-      ],
-      "to": [
-        "id_sede"
-      ]
-    },
-    {
-      "name": "distritos",
-      "type": "distritos",
-      "from": [
-        "id_ubigeo"
-      ],
-      "to": [
-        "id_ubigeo"
-      ]
-    }
-  ],
   "clientes": [
     {
       "name": "empresas",
@@ -107,6 +65,18 @@ export const tenantRelations: Record<string, { name: string; type: string; from:
       ],
       "to": [
         "id_puesto"
+      ]
+    },
+    {
+      "name": "clientes_clientes_puestos_id_empresa_id_clienteToclientes",
+      "type": "clientes",
+      "from": [
+        "id_empresa",
+        "id_cliente"
+      ],
+      "to": [
+        "id_empresa",
+        "id_cliente"
       ]
     }
   ],
@@ -169,6 +139,42 @@ export const tenantRelations: Record<string, { name: string; type: string; from:
       ],
       "to": [
         "id_variedad"
+      ]
+    },
+    {
+      "name": "clientes_detalle_carga_id_empresa_id_cliente_emisorToclientes",
+      "type": "clientes",
+      "from": [
+        "id_empresa",
+        "id_cliente_emisor"
+      ],
+      "to": [
+        "id_empresa",
+        "id_cliente"
+      ]
+    },
+    {
+      "name": "frutas_detalle_carga_id_empresa_id_frutaTofrutas",
+      "type": "frutas",
+      "from": [
+        "id_empresa",
+        "id_fruta"
+      ],
+      "to": [
+        "id_empresa",
+        "id_fruta"
+      ]
+    },
+    {
+      "name": "operaciones_carga_detalle_carga_id_empresa_id_operacionTooperaciones_carga",
+      "type": "operaciones_carga",
+      "from": [
+        "id_empresa",
+        "id_operacion"
+      ],
+      "to": [
+        "id_empresa",
+        "id_operacion"
       ]
     }
   ],
@@ -557,26 +563,6 @@ export const tenantRelations: Record<string, { name: string; type: string; from:
   ],
   "lugares_operativos": [
     {
-      "name": "empresas",
-      "type": "empresas",
-      "from": [
-        "id_empresa"
-      ],
-      "to": [
-        "id_empresa"
-      ]
-    },
-    {
-      "name": "sedes",
-      "type": "sedes",
-      "from": [
-        "id_sede"
-      ],
-      "to": [
-        "id_sede"
-      ]
-    },
-    {
       "name": "distritos",
       "type": "distritos",
       "from": [
@@ -629,26 +615,6 @@ export const tenantRelations: Record<string, { name: string; type: string; from:
       ]
     },
     {
-      "name": "sedes_operaciones_carga_id_sede_destinoTosedes",
-      "type": "sedes",
-      "from": [
-        "id_sede_destino"
-      ],
-      "to": [
-        "id_sede"
-      ]
-    },
-    {
-      "name": "sedes_operaciones_carga_id_sede_origenTosedes",
-      "type": "sedes",
-      "from": [
-        "id_sede_origen"
-      ],
-      "to": [
-        "id_sede"
-      ]
-    },
-    {
       "name": "distritos_operaciones_carga_id_ubigeo_destinoTodistritos",
       "type": "distritos",
       "from": [
@@ -670,16 +636,6 @@ export const tenantRelations: Record<string, { name: string; type: string; from:
     }
   ],
   "puestos": [
-    {
-      "name": "empresas",
-      "type": "empresas",
-      "from": [
-        "id_empresa"
-      ],
-      "to": [
-        "id_empresa"
-      ]
-    },
     {
       "name": "lugares_operativos",
       "type": "lugares_operativos",
@@ -724,18 +680,6 @@ export const tenantRelations: Record<string, { name: string; type: string; from:
     }
   ],
   "roles_usuarios": [],
-  "sedes": [
-    {
-      "name": "empresas",
-      "type": "empresas",
-      "from": [
-        "id_empresa"
-      ],
-      "to": [
-        "id_empresa"
-      ]
-    }
-  ],
   "tipos_jaba": [
     {
       "name": "empresas",
@@ -757,16 +701,6 @@ export const tenantRelations: Record<string, { name: string; type: string; from:
       ],
       "to": [
         "id_empresa"
-      ]
-    },
-    {
-      "name": "sedes",
-      "type": "sedes",
-      "from": [
-        "id_sede"
-      ],
-      "to": [
-        "id_sede"
       ]
     },
     {
@@ -936,28 +870,6 @@ export const tenantRelations: Record<string, { name: string; type: string; from:
       ]
     }
   ],
-  "migracion_sedes_ubigeo": [
-    {
-      "name": "sedes",
-      "type": "sedes",
-      "from": [
-        "id_sede"
-      ],
-      "to": [
-        "id_sede"
-      ]
-    },
-    {
-      "name": "distritos",
-      "type": "distritos",
-      "from": [
-        "id_ubigeo"
-      ],
-      "to": [
-        "id_ubigeo"
-      ]
-    }
-  ],
   "provincias": [
     {
       "name": "departamentos",
@@ -970,8 +882,17 @@ export const tenantRelations: Record<string, { name: string; type: string; from:
       ]
     }
   ],
-  "ubigeo_importacion": [],
   "resoluciones_reparto": [
+    {
+      "name": "empresas",
+      "type": "empresas",
+      "from": [
+        "id_empresa"
+      ],
+      "to": [
+        "id_empresa"
+      ]
+    },
     {
       "name": "items_reparto",
       "type": "items_reparto",
@@ -981,6 +902,198 @@ export const tenantRelations: Record<string, { name: string; type: string; from:
       "to": [
         "id_item_reparto"
       ]
+    },
+    {
+      "name": "usuarios",
+      "type": "usuarios",
+      "from": [
+        "id_usuario"
+      ],
+      "to": [
+        "id_usuario"
+      ]
+    }
+  ],
+  "cliente_distrito": [
+    {
+      "name": "clientes",
+      "type": "clientes",
+      "from": [
+        "id_cliente"
+      ],
+      "to": [
+        "id_cliente"
+      ]
+    },
+    {
+      "name": "empresas",
+      "type": "empresas",
+      "from": [
+        "id_empresa"
+      ],
+      "to": [
+        "id_empresa"
+      ]
+    },
+    {
+      "name": "distritos",
+      "type": "distritos",
+      "from": [
+        "id_ubigeo"
+      ],
+      "to": [
+        "id_ubigeo"
+      ]
     }
   ]
+};
+export const listRelations: Record<string, string[]> = {
+  "calidades": [
+    "detalle_carga_calidades"
+  ],
+  "camiones": [
+    "operaciones_carga"
+  ],
+  "clientes": [
+    "cliente_distrito",
+    "clientes_puestos",
+    "clientes_puestos_clientes_puestos_id_empresa_id_clienteToclientes",
+    "detalle_carga",
+    "detalle_carga_detalle_carga_id_empresa_id_cliente_emisorToclientes",
+    "items_reparto",
+    "jabas_por_pagar"
+  ],
+  "clientes_puestos": [],
+  "detalle_carga": [
+    "detalle_carga_calidades",
+    "items_reparto"
+  ],
+  "detalle_carga_calidades": [
+    "items_reparto_detalle"
+  ],
+  "devoluciones_jabas_emisor": [],
+  "empresas": [
+    "calidades",
+    "camiones",
+    "cliente_distrito",
+    "clientes",
+    "clientes_puestos",
+    "detalle_carga",
+    "detalle_carga_calidades",
+    "devoluciones_jabas_emisor",
+    "empresa_lugares",
+    "entregas",
+    "evidencias",
+    "frutas",
+    "guias_operativas",
+    "incidencias",
+    "items_reparto",
+    "items_reparto_detalle",
+    "jabas_por_cobrar",
+    "jabas_por_pagar",
+    "logs_actividad",
+    "operaciones_carga",
+    "recuperaciones_jabas",
+    "resoluciones_reparto",
+    "tipos_jaba",
+    "usuarios",
+    "variedades"
+  ],
+  "entregas": [
+    "incidencias",
+    "jabas_por_cobrar",
+    "jabas_por_pagar"
+  ],
+  "evidencias": [],
+  "frutas": [
+    "detalle_carga",
+    "detalle_carga_detalle_carga_id_empresa_id_frutaTofrutas",
+    "variedades"
+  ],
+  "guias_operativas": [
+    "entregas",
+    "incidencias"
+  ],
+  "incidencias": [],
+  "items_reparto": [
+    "entregas",
+    "guias_operativas",
+    "items_reparto_detalle",
+    "resoluciones_reparto"
+  ],
+  "jabas_por_cobrar": [
+    "recuperaciones_jabas"
+  ],
+  "jabas_por_pagar": [
+    "devoluciones_jabas_emisor"
+  ],
+  "logs_actividad": [],
+  "lugares_operativos": [
+    "empresa_lugares",
+    "puestos"
+  ],
+  "operaciones_carga": [
+    "detalle_carga",
+    "detalle_carga_detalle_carga_id_empresa_id_operacionTooperaciones_carga",
+    "incidencias"
+  ],
+  "puestos": [
+    "clientes_puestos",
+    "guias_operativas",
+    "items_reparto"
+  ],
+  "recuperaciones_jabas": [
+    "devoluciones_jabas_emisor"
+  ],
+  "roles_usuarios": [
+    "roles_modulos",
+    "usuarios_roles"
+  ],
+  "tipos_jaba": [
+    "detalle_carga",
+    "jabas_por_cobrar",
+    "jabas_por_pagar"
+  ],
+  "usuarios": [
+    "devoluciones_jabas_emisor",
+    "entregas",
+    "evidencias",
+    "guias_operativas",
+    "incidencias",
+    "logs_actividad",
+    "operaciones_carga_operaciones_carga_id_encargado_cargaTousuarios",
+    "operaciones_carga_operaciones_carga_id_repartidor_asignadoTousuarios",
+    "recuperaciones_jabas",
+    "resoluciones_reparto",
+    "roles_modulos",
+    "usuarios_roles"
+  ],
+  "usuarios_roles": [],
+  "variedades": [
+    "detalle_carga"
+  ],
+  "items_reparto_detalle": [],
+  "categorias": [
+    "modulos"
+  ],
+  "modulos": [
+    "roles_modulos"
+  ],
+  "roles_modulos": [],
+  "departamentos": [
+    "provincias"
+  ],
+  "distritos": [
+    "cliente_distrito",
+    "lugares_operativos",
+    "operaciones_carga_operaciones_carga_id_ubigeo_destinoTodistritos",
+    "operaciones_carga_operaciones_carga_id_ubigeo_origenTodistritos",
+    "usuarios"
+  ],
+  "empresa_lugares": [],
+  "provincias": [
+    "distritos"
+  ],
+  "resoluciones_reparto": [],
+  "cliente_distrito": []
 };

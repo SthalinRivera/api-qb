@@ -1,0 +1,10 @@
+
+> quipubox-api@0.0.1 test
+> jest --runInBand
+
+
+Test Suites: 15 passed, 15 total
+Tests:       82 passed, 82 total
+Snapshots:   0 total
+Time:        16.882 s
+Ran all test suites.

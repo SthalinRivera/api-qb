@@ -3,20 +3,20 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 const transactionContext = new AsyncLocalStorage<any>();
 import { actorActual } from '../../common/security/request-context';
 import { prepararConsulta } from '../../common/security/tenant-query';
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';   // 👈 necesario
 
 @Injectable()
-export class PrismaService extends PrismaClient implements OnModuleInit {
+export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
     private readonly baseClient: PrismaClient;
 
     constructor() {
         // 1. Crear el pool de conexiones usando la URL
         const pool = new Pool({ connectionString: process.env.DATABASE_URL });
         // 2. Crear el adaptador con el pool
-        const adapter = new PrismaPg(pool);
+        const adapter = new PrismaPg(pool, { disposeExternalPool: true });
         // 3. Pasar el adaptador al cliente
         super({ adapter });
         // Keep the public Prisma proxy: getters run with the internal instance,
@@ -48,6 +48,8 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
         }
         return this.scopedClient;
     }
+
+    async onModuleDestroy() { await this.$disconnect(); }
 
     async onModuleInit() {
         await this.$connect();

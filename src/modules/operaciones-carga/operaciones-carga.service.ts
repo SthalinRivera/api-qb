@@ -35,10 +35,8 @@ export class OperacionesCargaService {
     return this.prisma.scoped.operaciones_carga.create({
       data: {
         id_empresa: this.prisma.empresaId, // TODO: Reemplazar con el id_empresa del token JWT del usuario autenticado
-        id_sede_origen: createDto.id_sede_origen,
         id_ubigeo_origen: createDto.id_ubigeo_origen,
         id_ubigeo_destino: createDto.id_ubigeo_destino,
-        id_sede_destino: createDto.id_sede_destino,
         id_camion: createDto.id_camion,
         id_encargado_carga: createDto.id_encargado_carga,
         id_repartidor_asignado: createDto.id_repartidor_asignado,
@@ -51,8 +49,8 @@ export class OperacionesCargaService {
       },
       include: {
         camiones: true,
-        sedes_operaciones_carga_id_sede_origenTosedes: true,
-        sedes_operaciones_carga_id_sede_destinoTosedes: true,
+        distritos_operaciones_carga_id_ubigeo_origenTodistritos: true,
+        distritos_operaciones_carga_id_ubigeo_destinoTodistritos: true,
         usuarios_operaciones_carga_id_encargado_cargaTousuarios: true,
         usuarios_operaciones_carga_id_repartidor_asignadoTousuarios: true,
       },
@@ -77,8 +75,8 @@ export class OperacionesCargaService {
       orderBy: { fecha_carga: 'desc' }, // Más recientes primero
       include: {
         camiones: true,
-        sedes_operaciones_carga_id_sede_origenTosedes: true,
-        sedes_operaciones_carga_id_sede_destinoTosedes: true,
+        distritos_operaciones_carga_id_ubigeo_origenTodistritos: true,
+        distritos_operaciones_carga_id_ubigeo_destinoTodistritos: true,
         usuarios_operaciones_carga_id_encargado_cargaTousuarios: true,
         usuarios_operaciones_carga_id_repartidor_asignadoTousuarios: true,
       },
@@ -90,8 +88,8 @@ export class OperacionesCargaService {
       where: { id_operacion: id },
       include: {
         camiones: true,
-        sedes_operaciones_carga_id_sede_origenTosedes: true,
-        sedes_operaciones_carga_id_sede_destinoTosedes: true,
+        distritos_operaciones_carga_id_ubigeo_origenTodistritos: true,
+        distritos_operaciones_carga_id_ubigeo_destinoTodistritos: true,
         usuarios_operaciones_carga_id_encargado_cargaTousuarios: true,
         usuarios_operaciones_carga_id_repartidor_asignadoTousuarios: true,
         detalle_carga: {
@@ -145,10 +143,8 @@ export class OperacionesCargaService {
     return this.prisma.scoped.operaciones_carga.update({
       where: { id_operacion: id, estado: operacion.estado },
       data: {
-        id_sede_origen: updateDto.id_sede_origen,
         id_ubigeo_origen: updateDto.id_ubigeo_origen,
         id_ubigeo_destino: updateDto.id_ubigeo_destino,
-        id_sede_destino: updateDto.id_sede_destino,
         id_camion: updateDto.id_camion,
         id_encargado_carga: updateDto.id_encargado_carga,
         id_repartidor_asignado: updateDto.id_repartidor_asignado,
@@ -163,8 +159,8 @@ export class OperacionesCargaService {
       },
       include: {
         camiones: true,
-        sedes_operaciones_carga_id_sede_origenTosedes: true,
-        sedes_operaciones_carga_id_sede_destinoTosedes: true,
+        distritos_operaciones_carga_id_ubigeo_origenTodistritos: true,
+        distritos_operaciones_carga_id_ubigeo_destinoTodistritos: true,
         usuarios_operaciones_carga_id_encargado_cargaTousuarios: true,
         usuarios_operaciones_carga_id_repartidor_asignadoTousuarios: true,
       },
@@ -215,7 +211,7 @@ export class OperacionesCargaService {
     const [total, operaciones] = await this.prisma.scoped.$transaction([
       this.prisma.scoped.operaciones_carga.count({ where }),
       this.prisma.scoped.operaciones_carga.findMany({ where, skip: (page - 1) * limit, take: limit, orderBy: [{ fecha_carga: 'desc' }, { id_operacion: 'desc' }], include: {
-        camiones: true, sedes_operaciones_carga_id_sede_origenTosedes: true, sedes_operaciones_carga_id_sede_destinoTosedes: true, detalle_carga: { include: { detalle_carga_calidades: true, items_reparto: { include: { items_reparto_detalle: true, entregas: true, resoluciones_reparto: true } } } },
+        camiones: true, distritos_operaciones_carga_id_ubigeo_origenTodistritos: true, distritos_operaciones_carga_id_ubigeo_destinoTodistritos: true, detalle_carga: { include: { detalle_carga_calidades: true, items_reparto: { include: { items_reparto_detalle: true, entregas: true, resoluciones_reparto: true } } } },
       } }),
     ]);
     return { data: operaciones.map(({ detalle_carga, ...op }) => ({ ...op, resumen: resumenReparto(detalle_carga) })), total, page, limit };
@@ -223,29 +219,29 @@ export class OperacionesCargaService {
 
   private async validateRelations(dto: any, excludeId?: number) {
     const {
-      id_sede_origen,
-      id_sede_destino,
+      id_ubigeo_origen,
+      id_ubigeo_destino,
       id_camion,
       id_encargado_carga,
       id_repartidor_asignado,
     } = dto;
 
-    if (id_sede_origen) {
-      const exists = await this.prisma.scoped.sedes.findUnique({
-        where: { id_sede: id_sede_origen },
+    if (id_ubigeo_origen) {
+      const exists = await this.prisma.scoped.distritos.findUnique({
+        where: { id_ubigeo: id_ubigeo_origen },
       });
       if (!exists)
         throw new BadRequestException(
-          `Sede origen con ID ${id_sede_origen} no existe`,
+          `Sede origen con ID ${id_ubigeo_origen} no existe`,
         );
     }
-    if (id_sede_destino) {
-      const exists = await this.prisma.scoped.sedes.findUnique({
-        where: { id_sede: id_sede_destino },
+    if (id_ubigeo_destino) {
+      const exists = await this.prisma.scoped.distritos.findUnique({
+        where: { id_ubigeo: id_ubigeo_destino },
       });
       if (!exists)
         throw new BadRequestException(
-          `Sede destino con ID ${id_sede_destino} no existe`,
+          `Sede destino con ID ${id_ubigeo_destino} no existe`,
         );
     }
     if (id_camion) {
@@ -352,7 +348,7 @@ export class OperacionesCargaService {
         operaciones_carga: {
           include: {
             camiones: true,
-            sedes_operaciones_carga_id_sede_origenTosedes: true,
+            distritos_operaciones_carga_id_ubigeo_origenTodistritos: true,
           },
         },
       },

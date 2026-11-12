@@ -1,0 +1,1832 @@
+[
+  {
+    "table_name": "_prisma_migrations",
+    "column_name": "id",
+    "data_type": "character varying",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "_prisma_migrations",
+    "column_name": "checksum",
+    "data_type": "character varying",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "_prisma_migrations",
+    "column_name": "finished_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "_prisma_migrations",
+    "column_name": "migration_name",
+    "data_type": "character varying",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "_prisma_migrations",
+    "column_name": "logs",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "_prisma_migrations",
+    "column_name": "rolled_back_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "_prisma_migrations",
+    "column_name": "started_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "_prisma_migrations",
+    "column_name": "applied_steps_count",
+    "data_type": "integer",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "calidades",
+    "column_name": "id_calidad",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "calidades",
+    "column_name": "id_empresa",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "calidades",
+    "column_name": "nombre",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "calidades",
+    "column_name": "descripcion",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "calidades",
+    "column_name": "estado",
+    "data_type": "boolean",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "calidades",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "camiones",
+    "column_name": "id_camion",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "camiones",
+    "column_name": "id_empresa",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "camiones",
+    "column_name": "placa",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "camiones",
+    "column_name": "observaciones",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "camiones",
+    "column_name": "estado",
+    "data_type": "boolean",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "camiones",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "camiones",
+    "column_name": "descripcion",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "categorias",
+    "column_name": "id_categoria",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "categorias",
+    "column_name": "nombre",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "categorias",
+    "column_name": "descripcion",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "categorias",
+    "column_name": "icono_web",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "categorias",
+    "column_name": "icono_mobil",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "categorias",
+    "column_name": "orden",
+    "data_type": "integer",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "categorias",
+    "column_name": "estado",
+    "data_type": "boolean",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "categorias",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "categorias",
+    "column_name": "updated_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "cliente_distrito",
+    "column_name": "id_cliente_distrito",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "cliente_distrito",
+    "column_name": "id_empresa",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "cliente_distrito",
+    "column_name": "id_cliente",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "cliente_distrito",
+    "column_name": "observaciones",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "cliente_distrito",
+    "column_name": "estado",
+    "data_type": "boolean",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "cliente_distrito",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "cliente_distrito",
+    "column_name": "tipo_relacion",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "cliente_distrito",
+    "column_name": "id_ubigeo",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "clientes",
+    "column_name": "id_cliente",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "clientes",
+    "column_name": "id_empresa",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "clientes",
+    "column_name": "nombres",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "clientes",
+    "column_name": "apellidos",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "clientes",
+    "column_name": "apodo",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "clientes",
+    "column_name": "telefono",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "clientes",
+    "column_name": "observaciones",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "clientes",
+    "column_name": "estado",
+    "data_type": "boolean",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "clientes",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "clientes_puestos",
+    "column_name": "id_cliente_puesto",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "clientes_puestos",
+    "column_name": "id_empresa",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "clientes_puestos",
+    "column_name": "id_cliente",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "clientes_puestos",
+    "column_name": "id_puesto",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "clientes_puestos",
+    "column_name": "fecha_inicio",
+    "data_type": "date",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "clientes_puestos",
+    "column_name": "fecha_fin",
+    "data_type": "date",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "clientes_puestos",
+    "column_name": "estado",
+    "data_type": "boolean",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "clientes_puestos",
+    "column_name": "observaciones",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "clientes_puestos",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "clientes_puestos",
+    "column_name": "seccion",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "departamentos",
+    "column_name": "id_departamento",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "departamentos",
+    "column_name": "nombre",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "detalle_carga",
+    "column_name": "id_detalle_carga",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "detalle_carga",
+    "column_name": "id_empresa",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "detalle_carga",
+    "column_name": "id_operacion",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "detalle_carga",
+    "column_name": "id_cliente_emisor",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "detalle_carga",
+    "column_name": "id_fruta",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "detalle_carga",
+    "column_name": "id_variedad",
+    "data_type": "bigint",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "detalle_carga",
+    "column_name": "id_tipo_jaba",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "detalle_carga",
+    "column_name": "cantidad_jabas",
+    "data_type": "integer",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "detalle_carga",
+    "column_name": "es_reparto",
+    "data_type": "boolean",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "detalle_carga",
+    "column_name": "instruccion_reparto",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "detalle_carga",
+    "column_name": "observaciones",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "detalle_carga",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "detalle_carga",
+    "column_name": "requiere_retorno_jabas",
+    "data_type": "boolean",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "detalle_carga",
+    "column_name": "orden_carga",
+    "data_type": "integer",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "detalle_carga_calidades",
+    "column_name": "id_detalle_carga_calidad",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "detalle_carga_calidades",
+    "column_name": "id_empresa",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "detalle_carga_calidades",
+    "column_name": "id_detalle_carga",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "detalle_carga_calidades",
+    "column_name": "id_calidad",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "detalle_carga_calidades",
+    "column_name": "cantidad",
+    "data_type": "integer",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "detalle_carga_calidades",
+    "column_name": "precio_unitario",
+    "data_type": "numeric",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "detalle_carga_calidades",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "devoluciones_jabas_emisor",
+    "column_name": "id_devolucion",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "devoluciones_jabas_emisor",
+    "column_name": "id_empresa",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "devoluciones_jabas_emisor",
+    "column_name": "id_jaba_pagar",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "devoluciones_jabas_emisor",
+    "column_name": "fecha_devolucion",
+    "data_type": "date",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "devoluciones_jabas_emisor",
+    "column_name": "tipo_devolucion",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "devoluciones_jabas_emisor",
+    "column_name": "cantidad",
+    "data_type": "integer",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "devoluciones_jabas_emisor",
+    "column_name": "id_usuario_responsable",
+    "data_type": "bigint",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "devoluciones_jabas_emisor",
+    "column_name": "observaciones",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "devoluciones_jabas_emisor",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "devoluciones_jabas_emisor",
+    "column_name": "id_recuperacion",
+    "data_type": "bigint",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "distritos",
+    "column_name": "id_ubigeo",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "distritos",
+    "column_name": "id_provincia",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "distritos",
+    "column_name": "nombre",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "empresa_lugares",
+    "column_name": "id_empresa_lugar",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "empresa_lugares",
+    "column_name": "id_empresa",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "empresa_lugares",
+    "column_name": "id_lugar",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "empresa_lugares",
+    "column_name": "estado",
+    "data_type": "boolean",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "empresa_lugares",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "empresas",
+    "column_name": "id_empresa",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "empresas",
+    "column_name": "razon_social",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "empresas",
+    "column_name": "nombre_comercial",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "empresas",
+    "column_name": "ruc",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "empresas",
+    "column_name": "telefono",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "empresas",
+    "column_name": "direccion",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "empresas",
+    "column_name": "estado",
+    "data_type": "boolean",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "empresas",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "entregas",
+    "column_name": "id_entrega",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "entregas",
+    "column_name": "id_empresa",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "entregas",
+    "column_name": "id_guia",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "entregas",
+    "column_name": "id_item_reparto",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "entregas",
+    "column_name": "id_entregador",
+    "data_type": "bigint",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "entregas",
+    "column_name": "fecha_entrega",
+    "data_type": "date",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "entregas",
+    "column_name": "hora_entrega",
+    "data_type": "time without time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "entregas",
+    "column_name": "cantidad_entregada",
+    "data_type": "integer",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "entregas",
+    "column_name": "cantidad_rechazada",
+    "data_type": "integer",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "entregas",
+    "column_name": "estado_entrega",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "entregas",
+    "column_name": "firma_recibido",
+    "data_type": "boolean",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "entregas",
+    "column_name": "nombre_recibe",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "entregas",
+    "column_name": "observaciones",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "entregas",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "evidencias",
+    "column_name": "id_evidencia",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "evidencias",
+    "column_name": "id_empresa",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "evidencias",
+    "column_name": "tipo_entidad",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "evidencias",
+    "column_name": "id_entidad",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "evidencias",
+    "column_name": "url_archivo",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "evidencias",
+    "column_name": "tipo_archivo",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "evidencias",
+    "column_name": "descripcion",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "evidencias",
+    "column_name": "subido_por",
+    "data_type": "bigint",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "evidencias",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "frutas",
+    "column_name": "id_fruta",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "frutas",
+    "column_name": "id_empresa",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "frutas",
+    "column_name": "nombre",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "frutas",
+    "column_name": "descripcion",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "frutas",
+    "column_name": "estado",
+    "data_type": "boolean",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "frutas",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "guias_operativas",
+    "column_name": "id_guia",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "guias_operativas",
+    "column_name": "id_empresa",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "guias_operativas",
+    "column_name": "numero_guia",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "guias_operativas",
+    "column_name": "fecha_emision",
+    "data_type": "date",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "guias_operativas",
+    "column_name": "id_repartidor",
+    "data_type": "bigint",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "guias_operativas",
+    "column_name": "estado",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "guias_operativas",
+    "column_name": "observaciones",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "guias_operativas",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "guias_operativas",
+    "column_name": "id_item_reparto",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "guias_operativas",
+    "column_name": "id_puesto",
+    "data_type": "bigint",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "guias_operativas",
+    "column_name": "cobertura",
+    "data_type": "jsonb",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "incidencias",
+    "column_name": "id_incidencia",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "incidencias",
+    "column_name": "id_empresa",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "incidencias",
+    "column_name": "fecha_incidencia",
+    "data_type": "date",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "incidencias",
+    "column_name": "hora_incidencia",
+    "data_type": "time without time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "incidencias",
+    "column_name": "id_operacion",
+    "data_type": "bigint",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "incidencias",
+    "column_name": "id_guia",
+    "data_type": "bigint",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "incidencias",
+    "column_name": "id_entrega",
+    "data_type": "bigint",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "incidencias",
+    "column_name": "tipo_incidencia",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "incidencias",
+    "column_name": "descripcion",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "incidencias",
+    "column_name": "accion_tomada",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "incidencias",
+    "column_name": "id_usuario_reporta",
+    "data_type": "bigint",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "incidencias",
+    "column_name": "estado",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "incidencias",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "items_reparto",
+    "column_name": "id_item_reparto",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "items_reparto",
+    "column_name": "id_empresa",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "items_reparto",
+    "column_name": "id_detalle_carga",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "items_reparto",
+    "column_name": "id_cliente_receptor",
+    "data_type": "bigint",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "items_reparto",
+    "column_name": "id_puesto",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "items_reparto",
+    "column_name": "cantidad_asignada",
+    "data_type": "integer",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "items_reparto",
+    "column_name": "orden_entrega",
+    "data_type": "integer",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "items_reparto",
+    "column_name": "observaciones",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "items_reparto",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "items_reparto",
+    "column_name": "seccion",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "items_reparto_detalle",
+    "column_name": "id_item_reparto_detalle",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "items_reparto_detalle",
+    "column_name": "id_empresa",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "items_reparto_detalle",
+    "column_name": "id_item_reparto",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "items_reparto_detalle",
+    "column_name": "id_detalle_carga_calidad",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "items_reparto_detalle",
+    "column_name": "cantidad",
+    "data_type": "integer",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "items_reparto_detalle",
+    "column_name": "precio_unitario",
+    "data_type": "numeric",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "items_reparto_detalle",
+    "column_name": "subtotal",
+    "data_type": "numeric",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "items_reparto_detalle",
+    "column_name": "observaciones",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "items_reparto_detalle",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "jabas_por_cobrar",
+    "column_name": "id_jaba_cobrar",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "jabas_por_cobrar",
+    "column_name": "id_empresa",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "jabas_por_cobrar",
+    "column_name": "id_entrega",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "jabas_por_cobrar",
+    "column_name": "id_tipo_jaba",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "jabas_por_cobrar",
+    "column_name": "fecha_origen",
+    "data_type": "date",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "jabas_por_cobrar",
+    "column_name": "cantidad_original",
+    "data_type": "integer",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "jabas_por_cobrar",
+    "column_name": "cantidad_recuperada",
+    "data_type": "integer",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "jabas_por_cobrar",
+    "column_name": "saldo_pendiente",
+    "data_type": "integer",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "jabas_por_cobrar",
+    "column_name": "estado",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "jabas_por_cobrar",
+    "column_name": "observaciones",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "jabas_por_cobrar",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "jabas_por_cobrar",
+    "column_name": "seccion",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "jabas_por_pagar",
+    "column_name": "id_jaba_pagar",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "jabas_por_pagar",
+    "column_name": "id_empresa",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "jabas_por_pagar",
+    "column_name": "id_cliente_emisor",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "jabas_por_pagar",
+    "column_name": "id_tipo_jaba",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "jabas_por_pagar",
+    "column_name": "fecha_origen",
+    "data_type": "date",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "jabas_por_pagar",
+    "column_name": "cantidad_original",
+    "data_type": "integer",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "jabas_por_pagar",
+    "column_name": "cantidad_pagada",
+    "data_type": "integer",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "jabas_por_pagar",
+    "column_name": "saldo_pendiente",
+    "data_type": "integer",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "jabas_por_pagar",
+    "column_name": "estado",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "jabas_por_pagar",
+    "column_name": "observaciones",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "jabas_por_pagar",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "jabas_por_pagar",
+    "column_name": "id_entrega",
+    "data_type": "bigint",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "logs_actividad",
+    "column_name": "id_log",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "logs_actividad",
+    "column_name": "id_empresa",
+    "data_type": "bigint",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "logs_actividad",
+    "column_name": "id_usuario",
+    "data_type": "bigint",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "logs_actividad",
+    "column_name": "accion",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "logs_actividad",
+    "column_name": "tabla_afectada",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "logs_actividad",
+    "column_name": "id_registro",
+    "data_type": "bigint",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "logs_actividad",
+    "column_name": "datos_anteriores",
+    "data_type": "jsonb",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "logs_actividad",
+    "column_name": "datos_nuevos",
+    "data_type": "jsonb",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "logs_actividad",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "lugares_operativos",
+    "column_name": "id_lugar",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "lugares_operativos",
+    "column_name": "nombre",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "lugares_operativos",
+    "column_name": "direccion_referencia",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "lugares_operativos",
+    "column_name": "observaciones",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "lugares_operativos",
+    "column_name": "estado",
+    "data_type": "boolean",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "lugares_operativos",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "lugares_operativos",
+    "column_name": "tipo_lugar",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "lugares_operativos",
+    "column_name": "id_ubigeo",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "modulos",
+    "column_name": "id_modulo",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "modulos",
+    "column_name": "nombre",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "modulos",
+    "column_name": "ruta",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "modulos",
+    "column_name": "id_categoria",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "modulos",
+    "column_name": "orden",
+    "data_type": "integer",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "modulos",
+    "column_name": "estado",
+    "data_type": "boolean",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "modulos",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "modulos",
+    "column_name": "updated_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "operaciones_carga",
+    "column_name": "id_operacion",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "operaciones_carga",
+    "column_name": "id_empresa",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "operaciones_carga",
+    "column_name": "id_camion",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "operaciones_carga",
+    "column_name": "id_encargado_carga",
+    "data_type": "bigint",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "operaciones_carga",
+    "column_name": "id_repartidor_asignado",
+    "data_type": "bigint",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "operaciones_carga",
+    "column_name": "fecha_carga",
+    "data_type": "date",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "operaciones_carga",
+    "column_name": "hora_carga",
+    "data_type": "time without time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "operaciones_carga",
+    "column_name": "estado",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "operaciones_carga",
+    "column_name": "observaciones",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "operaciones_carga",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "operaciones_carga",
+    "column_name": "id_ubigeo_origen",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "operaciones_carga",
+    "column_name": "id_ubigeo_destino",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "provincias",
+    "column_name": "id_provincia",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "provincias",
+    "column_name": "id_departamento",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "provincias",
+    "column_name": "nombre",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "puestos",
+    "column_name": "id_puesto",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "puestos",
+    "column_name": "id_lugar",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "puestos",
+    "column_name": "codigo_puesto",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "puestos",
+    "column_name": "referencia",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "puestos",
+    "column_name": "estado",
+    "data_type": "boolean",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "puestos",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "recuperaciones_jabas",
+    "column_name": "id_recuperacion",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "recuperaciones_jabas",
+    "column_name": "id_empresa",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "recuperaciones_jabas",
+    "column_name": "id_jaba_cobrar",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "recuperaciones_jabas",
+    "column_name": "fecha_recuperacion",
+    "data_type": "date",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "recuperaciones_jabas",
+    "column_name": "tipo_recuperacion",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "recuperaciones_jabas",
+    "column_name": "cantidad",
+    "data_type": "integer",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "recuperaciones_jabas",
+    "column_name": "id_usuario_responsable",
+    "data_type": "bigint",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "recuperaciones_jabas",
+    "column_name": "observaciones",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "recuperaciones_jabas",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "resoluciones_reparto",
+    "column_name": "id_resolucion",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "resoluciones_reparto",
+    "column_name": "id_empresa",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "resoluciones_reparto",
+    "column_name": "id_item_reparto",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "resoluciones_reparto",
+    "column_name": "id_usuario",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "resoluciones_reparto",
+    "column_name": "tipo",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "resoluciones_reparto",
+    "column_name": "cantidad",
+    "data_type": "integer",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "resoluciones_reparto",
+    "column_name": "motivo",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "resoluciones_reparto",
+    "column_name": "clave_idempotencia",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "resoluciones_reparto",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "roles_modulos",
+    "column_name": "id_rol_modulo",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "roles_modulos",
+    "column_name": "rol_id",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "roles_modulos",
+    "column_name": "modulo_id",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "roles_modulos",
+    "column_name": "fecha_asignacion",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "roles_modulos",
+    "column_name": "usuario_asigno",
+    "data_type": "bigint",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "roles_usuarios",
+    "column_name": "id_rol_usuario",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "roles_usuarios",
+    "column_name": "nombre",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "roles_usuarios",
+    "column_name": "descripcion",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "roles_usuarios",
+    "column_name": "estado",
+    "data_type": "boolean",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "roles_usuarios",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "tipos_jaba",
+    "column_name": "id_tipo_jaba",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "tipos_jaba",
+    "column_name": "id_empresa",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "tipos_jaba",
+    "column_name": "nombre",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "tipos_jaba",
+    "column_name": "tipo_material",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "tipos_jaba",
+    "column_name": "descripcion",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "tipos_jaba",
+    "column_name": "estado",
+    "data_type": "boolean",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "tipos_jaba",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "usuarios",
+    "column_name": "id_usuario",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "usuarios",
+    "column_name": "id_empresa",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "usuarios",
+    "column_name": "nombres",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "usuarios",
+    "column_name": "apellidos",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "usuarios",
+    "column_name": "telefono",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "usuarios",
+    "column_name": "email",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "usuarios",
+    "column_name": "google_uid",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "usuarios",
+    "column_name": "avatar_url",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "usuarios",
+    "column_name": "estado",
+    "data_type": "boolean",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "usuarios",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "usuarios",
+    "column_name": "id_ubigeo",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "usuarios_roles",
+    "column_name": "id_usuario_rol",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "usuarios_roles",
+    "column_name": "id_usuario",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "usuarios_roles",
+    "column_name": "id_rol_usuario",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "usuarios_roles",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "variedades",
+    "column_name": "id_variedad",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "variedades",
+    "column_name": "id_empresa",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "variedades",
+    "column_name": "id_fruta",
+    "data_type": "bigint",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "variedades",
+    "column_name": "nombre",
+    "data_type": "text",
+    "is_nullable": "NO"
+  },
+  {
+    "table_name": "variedades",
+    "column_name": "descripcion",
+    "data_type": "text",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "variedades",
+    "column_name": "estado",
+    "data_type": "boolean",
+    "is_nullable": "YES"
+  },
+  {
+    "table_name": "variedades",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES"
+  }
+]

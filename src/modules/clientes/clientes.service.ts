@@ -7,7 +7,7 @@ import {
 import { PrismaService } from '../../config/prisma/prisma.service';
 import { CreateClienteDto } from './dto/create-cliente.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
-import { ClienteSedeDto } from './dto/cliente-sede.dto';
+import { ClienteUbicacionDto } from './dto/cliente-ubicacion.dto';
 import { AsignarPuestoDto } from './dto/asignar-puesto.dto';
 import { QueryClientesDto } from './dto/query-clientes.dto';
 import { PaginatedResult } from './interfaces/paginated-result.interface';
@@ -61,13 +61,12 @@ export class ClientesService {
         },
       });
 
-      // Asignar sedes
-      if (dto.sedes?.length) {
-        for (const s of dto.sedes) {
-          await tx.cliente_sede.create({
+      // Asignar ubicaciones
+      if (dto.ubicaciones?.length) {
+        for (const s of dto.ubicaciones) {
+          await tx.cliente_distrito.create({
             data: {
               id_cliente: cliente.id_cliente,
-              id_sede: BigInt(s.id_sede),
               id_empresa: cliente.id_empresa,
               tipo_relacion: s.tipo_relacion,
               id_ubigeo: s.id_ubigeo,
@@ -80,7 +79,7 @@ export class ClientesService {
       // Asignar puestos (validando ocupación global)
       if (dto.puestos?.length) {
         for (const p of [...dto.puestos].sort((a,b) => a.id_puesto-b.id_puesto)) {
-          await tx.$queryRaw`SELECT id_puesto FROM puestos WHERE id_puesto = ${BigInt(p.id_puesto)} AND id_empresa = ${this.prisma.empresaId} FOR UPDATE`;
+          await tx.$queryRaw`SELECT id_puesto FROM puestos WHERE id_puesto = ${BigInt(p.id_puesto)} FOR UPDATE`;
           const ocupado = await tx.clientes_puestos.findFirst({
             where: {
               id_puesto: BigInt(p.id_puesto),
@@ -144,18 +143,17 @@ export class ClientesService {
         },
       });
 
-      // 4. Reemplazar sedes
-      if (dto.sedes !== undefined) {
-        // Eliminar todas las sedes actuales (físicamente o con soft delete)
-        await tx.cliente_sede.deleteMany({
+      // 4. Reemplazar ubicaciones
+      if (dto.ubicaciones !== undefined) {
+        // Eliminar todas las ubicaciones actuales (físicamente o con soft delete)
+        await tx.cliente_distrito.deleteMany({
           where: { id_cliente: BigInt(id) },
         });
-        // Crear las nuevas sedes
-        for (const s of dto.sedes) {
-          await tx.cliente_sede.create({
+        // Crear las nuevas ubicaciones
+        for (const s of dto.ubicaciones) {
+          await tx.cliente_distrito.create({
             data: {
               id_cliente: BigInt(id),
-              id_sede: BigInt(s.id_sede),
               id_empresa: clienteExistente.id_empresa,
               tipo_relacion: s.tipo_relacion,
               id_ubigeo: s.id_ubigeo,
@@ -174,7 +172,7 @@ export class ClientesService {
         for (const anterior of actuales) if (!nuevos.has(key(anterior))) await tx.clientes_puestos.update({ where: { id_cliente_puesto: anterior.id_cliente_puesto }, data: { estado: false, fecha_fin: new Date() } });
         for (const puesto of [...dto.puestos].sort((a,b) => a.id_puesto-b.id_puesto)) {
           if (actuales.some((actual) => key(actual) === key(puesto))) continue;
-          await tx.$queryRaw`SELECT id_puesto FROM puestos WHERE id_puesto = ${BigInt(puesto.id_puesto)} AND id_empresa = ${this.prisma.empresaId} FOR UPDATE`;
+          await tx.$queryRaw`SELECT id_puesto FROM puestos WHERE id_puesto = ${BigInt(puesto.id_puesto)} FOR UPDATE`;
           if (await tx.clientes_puestos.findFirst({ where: { id_puesto: puesto.id_puesto, seccion: puesto.seccion || null, estado: true, fecha_fin: null } })) throw new ConflictException('El puesto y sección ya están ocupados.');
           await tx.clientes_puestos.create({ data: { id_cliente: id, id_puesto: puesto.id_puesto, seccion: puesto.seccion || null, id_empresa: clienteExistente.id_empresa, fecha_inicio: new Date(), estado: true } });
         }
@@ -188,7 +186,7 @@ export class ClientesService {
     });
   }
   async findAll(buscar?: string, query?: QueryClientesDto) {
-    const where = this.buildListWhere(buscar, query?.estado, query?.tipo_relacion, query?.id_sede);
+    const where = this.buildListWhere(buscar, query?.estado, query?.tipo_relacion, query?.id_ubigeo);
     return this.prisma.scoped.clientes.findMany({
       where,
       include: this.getClienteInclude(),
@@ -197,10 +195,10 @@ export class ClientesService {
   }
 
   async findAllPaginated(query: QueryClientesDto): Promise<PaginatedResult<any> & { activos: number; inactivos: number }> {
-    const { page = 1, limit = 10, buscar, estado = 'todos', tipo_relacion = 'todos', id_sede } = query;
+    const { page = 1, limit = 10, buscar, estado = 'todos', tipo_relacion = 'todos', id_ubigeo } = query;
     const skip = (page - 1) * limit;
 
-    const where = this.buildListWhere(buscar, estado, tipo_relacion, id_sede);
+    const where = this.buildListWhere(buscar, estado, tipo_relacion, id_ubigeo);
 
     const [data, total, activos, inactivos] = await Promise.all([
       this.prisma.scoped.clientes.findMany({
@@ -211,8 +209,8 @@ export class ClientesService {
         take: limit,
       }),
       this.prisma.scoped.clientes.count({ where }),
-      this.prisma.scoped.clientes.count({ where: { ...this.buildListWhere(buscar, undefined, tipo_relacion, id_sede), estado: true } }),
-      this.prisma.scoped.clientes.count({ where: { ...this.buildListWhere(buscar, undefined, tipo_relacion, id_sede), estado: false } }),
+      this.prisma.scoped.clientes.count({ where: { ...this.buildListWhere(buscar, undefined, tipo_relacion, id_ubigeo), estado: true } }),
+      this.prisma.scoped.clientes.count({ where: { ...this.buildListWhere(buscar, undefined, tipo_relacion, id_ubigeo), estado: false } }),
     ]);
 
     return {
@@ -286,14 +284,14 @@ export class ClientesService {
 
   // ==================== GESTIÓN DE SEDES ====================
 
-  async associateSede(dto: ClienteSedeDto) {
+  async associateUbicacion(dto: ClienteUbicacionDto) {
     await this.ensureClienteExists(dto.id_cliente);
-    await this.ensureSedeExists(dto.id_sede);
+    await this.ensureUbicacionExists(dto.id_ubigeo);
 
-    const existing = await this.prisma.scoped.cliente_sede.findFirst({
+    const existing = await this.prisma.scoped.cliente_distrito.findFirst({
       where: {
         id_cliente: BigInt(dto.id_cliente),
-        id_sede: BigInt(dto.id_sede),
+        id_ubigeo: dto.id_ubigeo,
         tipo_relacion: dto.tipo_relacion,
       },
     });
@@ -309,46 +307,45 @@ export class ClientesService {
       throw new NotFoundException(`Cliente con ID ${dto.id_cliente} no encontrado`);
     }
 
-    return this.prisma.scoped.cliente_sede.create({
+    return this.prisma.scoped.cliente_distrito.create({
       data: {
         id_cliente: BigInt(dto.id_cliente),
-        id_sede: BigInt(dto.id_sede),
+        id_ubigeo: dto.id_ubigeo,
         id_empresa: cliente.id_empresa,
         tipo_relacion: dto.tipo_relacion,
-        id_ubigeo: dto.id_ubigeo,
         estado: true,
       },
-      include: { clientes: true, sedes: true },
+      include: { clientes: true, distritos: true },
     });
   }
 
-  async getSedesByCliente(id: number) {
+  async getUbicacionesByCliente(id: number) {
     await this.ensureClienteExists(id);
     const cliente = await this.prisma.scoped.clientes.findUnique({
       where: { id_cliente: BigInt(id) },
       include: {
-        cliente_sede: {
+        cliente_distrito: {
           where: { estado: true },
-          include: { sedes: true },
+          include: { distritos: true },
         },
       },
     });
     if (!cliente) {
       throw new NotFoundException(`Cliente con ID ${id} no encontrado`);
     }
-    return cliente.cliente_sede;
+    return cliente.cliente_distrito;
   }
 
-  async updateSedeRelacion(clienteId: number, sedeId: number, tipoRelacion: string) {
-    const validTypes = ['emisor', 'receptor', 'ambos'];
+  async updateUbicacionRelacion(clienteId: number, relacionId: number, tipoRelacion: string) {
+    const validTypes = ['emisor', 'receptor'];
     if (!validTypes.includes(tipoRelacion)) {
-      throw new BadRequestException('tipo_relacion debe ser: emisor, receptor o ambos');
+      throw new BadRequestException('tipo_relacion debe ser: emisor o receptor');
     }
 
-    const relation = await this.prisma.scoped.cliente_sede.findFirst({
+    const relation = await this.prisma.scoped.cliente_distrito.findFirst({
       where: {
         id_cliente: BigInt(clienteId),
-        id_sede: BigInt(sedeId),
+        id_cliente_distrito: BigInt(relacionId),
         estado: true,
       },
     });
@@ -356,18 +353,18 @@ export class ClientesService {
       throw new NotFoundException('Relación cliente-sede no encontrada');
     }
 
-    return this.prisma.scoped.cliente_sede.update({
-      where: { id_cliente_sede: relation.id_cliente_sede },
+    return this.prisma.scoped.cliente_distrito.update({
+      where: { id_cliente_distrito: relation.id_cliente_distrito },
       data: { tipo_relacion: tipoRelacion },
-      include: { clientes: true, sedes: true },
+      include: { clientes: true, distritos: true },
     });
   }
 
-  async removeSede(clienteId: number, sedeId: number) {
-    const relation = await this.prisma.scoped.cliente_sede.findFirst({
+  async removeUbicacion(clienteId: number, relacionId: number) {
+    const relation = await this.prisma.scoped.cliente_distrito.findFirst({
       where: {
         id_cliente: BigInt(clienteId),
-        id_sede: BigInt(sedeId),
+        id_cliente_distrito: BigInt(relacionId),
         estado: true,
       },
     });
@@ -375,8 +372,8 @@ export class ClientesService {
       throw new NotFoundException('Relación cliente-sede no encontrada');
     }
 
-    return this.prisma.scoped.cliente_sede.delete({
-      where: { id_cliente_sede: relation.id_cliente_sede },
+    return this.prisma.scoped.cliente_distrito.delete({
+      where: { id_cliente_distrito: relation.id_cliente_distrito },
     });
   }
 
@@ -385,7 +382,7 @@ export class ClientesService {
   async assignPuesto(clienteId: number, dto: AsignarPuestoDto) {
     return this.prisma.scoped.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id_cliente FROM clientes WHERE id_cliente = ${BigInt(clienteId)} AND id_empresa = ${this.prisma.empresaId} FOR UPDATE`;
-    await tx.$queryRaw`SELECT id_puesto FROM puestos WHERE id_puesto = ${BigInt(dto.id_puesto)} AND id_empresa = ${this.prisma.empresaId} FOR UPDATE`;
+    await tx.$queryRaw`SELECT id_puesto FROM puestos WHERE id_puesto = ${BigInt(dto.id_puesto)} FOR UPDATE`;
 
     await this.ensureClienteExists(clienteId);
     await this.ensurePuestoExists(dto.id_puesto);
@@ -431,7 +428,7 @@ export class ClientesService {
 
   async removePuesto(clienteId: number, puestoId: number, ocupacionId?: number) {
     return this.prisma.scoped.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id_puesto FROM puestos WHERE id_puesto = ${BigInt(puestoId)} AND id_empresa = ${this.prisma.empresaId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id_puesto FROM puestos WHERE id_puesto = ${BigInt(puestoId)} FOR UPDATE`;
       const relaciones = await tx.clientes_puestos.findMany({ where: { id_cliente: clienteId, id_puesto: puestoId, id_cliente_puesto: ocupacionId, estado: true, fecha_fin: null } });
       if (!relaciones.length) throw new NotFoundException('Ocupación vigente no encontrada.');
       if (relaciones.length !== 1) throw new ConflictException('Hay varias secciones; indica id_cliente_puesto.');
@@ -453,7 +450,7 @@ export class ClientesService {
             puestos: {
               include: {
                 lugares_operativos: {
-                  include: { sedes: true },
+                  include: { distritos: true },
                 },
               },
             },
@@ -485,7 +482,7 @@ export class ClientesService {
         puestos: {
           include: {
             lugares_operativos: {
-              include: { sedes: true },
+              include: { distritos: true },
             },
           },
         },
@@ -503,11 +500,11 @@ export class ClientesService {
     if (!empresa) throw new NotFoundException('Empresa no encontrada');
   }
 
-  private async ensureSedeExists(sedeId: number) {
-    const sede = await this.prisma.scoped.sedes.findUnique({
-      where: { id_sede: BigInt(sedeId) },
+  private async ensureUbicacionExists(ubigeo: string) {
+    const sede = await this.prisma.scoped.distritos.findUnique({
+      where: { id_ubigeo: ubigeo },
     });
-    if (!sede) throw new NotFoundException('Sede no encontrada');
+    if (!sede) throw new NotFoundException('Ubicacion no encontrada');
   }
 
   private async ensurePuestoExists(puestoId: number) {
@@ -560,17 +557,17 @@ export class ClientesService {
     buscar?: string,
     estado?: string,
     tipoRelacion?: string,
-    sedeId?: number,
+    ubigeo?: string,
   ): Prisma.clientesWhereInput {
     const where: Prisma.clientesWhereInput = this.buildSearchWhere(buscar);
 
     if (estado && estado !== 'todos') {
       where.estado = estado === 'true';
     }
-    if (sedeId || (tipoRelacion && tipoRelacion !== 'todos')) {
-      where.cliente_sede = { some: { estado: true, id_sede: sedeId,
-        ...(tipoRelacion && tipoRelacion !== 'todos' ? { tipo_relacion: { in: tipoRelacion === 'ambos' ? ['ambos'] : [tipoRelacion, 'ambos'] } } : {}),
-      } };
+    if (tipoRelacion === 'ambos') {
+      where.AND = ['emisor', 'receptor'].map(tipo_relacion => ({ cliente_distrito: { some: { estado: true, id_ubigeo: ubigeo, tipo_relacion } } }));
+    } else if (ubigeo || (tipoRelacion && tipoRelacion !== 'todos')) {
+      where.cliente_distrito = { some: { estado: true, id_ubigeo: ubigeo, ...(tipoRelacion && tipoRelacion !== 'todos' ? { tipo_relacion: tipoRelacion } : {}) } };
     }
     return where;
   }
@@ -578,7 +575,7 @@ export class ClientesService {
   private getClienteInclude() {
     return {
       empresas: true,
-      cliente_sede: { include: { sedes: true } },
+      cliente_distrito: { include: { distritos: true } },
       clientes_puestos: { include: { puestos: true } },
     };
   }
@@ -586,7 +583,7 @@ export class ClientesService {
   private getClienteIncludeForList() {
     return {
       empresas: true,
-      cliente_sede: { include: { sedes: true } },
+      cliente_distrito: { include: { distritos: true } },
       clientes_puestos: {
         include: {
           puestos: {

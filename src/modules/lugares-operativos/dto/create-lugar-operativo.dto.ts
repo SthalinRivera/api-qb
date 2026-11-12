@@ -4,16 +4,12 @@ import { ApiProperty } from '@nestjs/swagger';
 import { TipoLugar } from '../../../common/enums';
 
 export class CreateLugarOperativoDto {
-  @IsOptional() @IsString() @Matches(/^\d{6}$/) id_ubigeo?: string;
+  @IsString() @Matches(/^\d{6}$/) id_ubigeo!: string;
   @ApiProperty({ example: 1 })
   @IsInt()
   id_empresa!: number;
 
-  @ApiProperty({ example: 1 })
-  @IsInt()
-  id_sede!: number;
-
-  @ApiProperty({ example: 'Mercado Central' })
+@ApiProperty({ example: 'Mercado Central' })
   @IsString()
   nombre!: string;
 

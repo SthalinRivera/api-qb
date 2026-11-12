@@ -1,3 +1,4 @@
+import { UbigeoPipe } from '../../common/pipes/ubigeo.pipe';
 import { Controller, Get, Post, Body, Patch, Param, Query, ParseIntPipe, Put, Req, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { LugaresOperativosService } from './lugares-operativos.service';
@@ -62,13 +63,13 @@ export class LugaresOperativosController {
     return this.lugaresOperativosService.changeState(id, updateStateDto.estado, profile.id_empresa);
   }
 
-  @Get('sedes/:sedeId/lugares')
-  @ApiOperation({ summary: 'Listar lugares operativos de una sede' })
-  async findBySede(
-    @Param('sedeId', ParseIntPipe) sedeId: number,
+  @Get('ubicaciones/:ubigeo/lugares')
+  @ApiOperation({ summary: 'Listar lugares operativos de una ubicación' })
+  async findByUbicacion(
+    @Param('ubigeo', UbigeoPipe) ubigeo: string,
     @Query('estado') estado?: string,
   ) {
     const estadoBool = estado === 'true' ? true : estado === 'false' ? false : undefined;
-    return this.lugaresOperativosService.findBySede(sedeId, estadoBool);
+    return this.lugaresOperativosService.findByUbicacion(ubigeo, estadoBool);
   }
 }

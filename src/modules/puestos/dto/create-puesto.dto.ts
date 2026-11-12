@@ -13,7 +13,7 @@ export class CreatePuestoDto {
   @ApiProperty({ example: 'Puesto 12A' })
   @IsString()
   @MaxLength(50)
-  numero_puesto!: string;
+  codigo_puesto!: string;
 
   @ApiProperty({ required: false })
   @IsOptional()

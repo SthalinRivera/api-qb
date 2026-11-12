@@ -20,7 +20,7 @@ export class GuiasOperativasService {
   async emitirOperacion(operacionId: number, itemId?: number) {
     return this.prisma.scoped.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${BigInt(operacionId)} AND id_empresa = ${this.prisma.empresaId} FOR UPDATE`;
-      const op = await tx.operaciones_carga.findUnique({ where: { id_operacion: operacionId }, include: { empresas: true, camiones: true, usuarios_operaciones_carga_id_repartidor_asignadoTousuarios: true, sedes_operaciones_carga_id_sede_origenTosedes: true, sedes_operaciones_carga_id_sede_destinoTosedes: true } });
+      const op = await tx.operaciones_carga.findUnique({ where: { id_operacion: operacionId }, include: { empresas: true, camiones: true, usuarios_operaciones_carga_id_repartidor_asignadoTousuarios: true, distritos_operaciones_carga_id_ubigeo_origenTodistritos: true, distritos_operaciones_carga_id_ubigeo_destinoTodistritos: true } });
       if (!op) throw new NotFoundException('Operación no encontrada.');
       if (!['en_transito','repartiendo'].includes(op.estado || '')) throw new BadRequestException('La emisión requiere una carga en tránsito o reparto.');
       const cargas = await tx.detalle_carga.findMany({ where: { id_operacion: operacionId }, include: { detalle_carga_calidades: true, items_reparto: { include: { items_reparto_detalle: true, entregas: true, resoluciones_reparto: true } } } });
@@ -93,8 +93,8 @@ export class GuiasOperativasService {
                 operaciones_carga: {
                   include: {
                     camiones: true,
-                    sedes_operaciones_carga_id_sede_origenTosedes: true,
-                    sedes_operaciones_carga_id_sede_destinoTosedes: true,
+                    distritos_operaciones_carga_id_ubigeo_origenTodistritos: true,
+                    distritos_operaciones_carga_id_ubigeo_destinoTodistritos: true,
                   },
                 },
                 clientes: true,        // 👈 emisor

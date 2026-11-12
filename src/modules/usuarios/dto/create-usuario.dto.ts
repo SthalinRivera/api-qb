@@ -1,3 +1,4 @@
+import { Matches } from 'class-validator';
 // src/usuarios/dto/create-usuario.dto.ts
 import { IsString, IsEmail, IsOptional, IsBoolean, IsInt, Min, Max } from 'class-validator';
 
@@ -32,7 +33,7 @@ export class CreateUsuarioDto {
     @IsInt()
     id_empresa!: number;
 
-    @IsOptional()
-    @IsInt()
-    id_sede?: number;
+    @IsString()
+    @Matches(/^\d{6}$/)
+    id_ubigeo!: string;
 }

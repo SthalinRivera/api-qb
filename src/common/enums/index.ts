@@ -68,13 +68,10 @@ export enum EstadoIncidencia {
 export enum TipoMaterialJaba {
     MADERA = 'madera',
     PLASTICO = 'plastico',
+    CARTON = 'carton',
 }
 
-export enum TipoRelacionClienteSede {
-    EMISOR = 'emisor',
-    RECEPTOR = 'receptor',
-    AMBOS = 'ambos',
-}
+export enum TipoRelacionClienteUbicacion { EMISOR = 'emisor', RECEPTOR = 'receptor' }
 
 export enum TipoRecuperacionJaba {
     VALE = 'vale',
@@ -121,7 +118,7 @@ export const ESTADOS_ENTREGA = Object.values(EstadoEntrega);
 export const TIPOS_INCIDENCIA = Object.values(TipoIncidencia);
 export const ESTADOS_INCIDENCIA = Object.values(EstadoIncidencia);
 export const TIPOS_MATERIAL_JABA = Object.values(TipoMaterialJaba);
-export const TIPOS_RELACION_CLIENTE_SEDE = Object.values(TipoRelacionClienteSede);
+export const TIPOS_RELACION_CLIENTE_SEDE = Object.values(TipoRelacionClienteUbicacion);
 export const TIPOS_RECUPERACION_JABA = Object.values(TipoRecuperacionJaba);
 export const TIPOS_DEVOLUCION_JABA = Object.values(TipoDevolucionJabaEmisor);
 export const ESTADOS_JABA = Object.values(EstadoJaba);

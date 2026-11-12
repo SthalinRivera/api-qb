@@ -1,17 +1,17 @@
+import { applyResponseContract } from './common/openapi/response-contract';
+import { ApiResponseInterceptor } from './common/interceptors/api-response.interceptor';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
-import { BigIntInterceptor } from './common/interceptors/bigint.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
-import { DecimalInterceptor } from './common/interceptors/decimal.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // 1. Habilitar CORS
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: (process.env.FRONTEND_URL || 'http://localhost:3000').split(',').map(origin => origin.trim()),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -25,18 +25,18 @@ async function bootstrap() {
   }));
 
   // 3. Interceptor y filtro global
-  app.useGlobalInterceptors(new BigIntInterceptor());
+  app.useGlobalInterceptors(new ApiResponseInterceptor());
   app.useGlobalFilters(new HttpExceptionFilter());
   // Interceptor para convertir Decimal de Prisma a número
-  app.useGlobalInterceptors(new DecimalInterceptor());
+
   // 4. Configuración de Swagger (OpenAPI)
   const config = new DocumentBuilder()
     .setTitle('API de Gestión Empresarial')
     .setDescription('API para administrar empresas, clientes, operaciones, etc. (sin borrado físico)')
-    .setVersion('1.0')
+    .setVersion('2.0')
     .addBearerAuth() // si usas autenticación JWT
     .build();
-  const document = SwaggerModule.createDocument(app, config);
+  const document = applyResponseContract(SwaggerModule.createDocument(app, config));
   // ✅ Forzar carga de recursos desde CDN (evita errores 404 en Vercel)
   SwaggerModule.setup('api/docs', app, document, {
     customCssUrl: 'https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.11.0/swagger-ui.css',

@@ -29,8 +29,6 @@ export class AuthService {
                 throw new UnauthorizedException('El token no contiene email');
             }
 
-            console.log('1️⃣ Usuario extraído desde token:', email);
-
             let userDb: any = await this.prisma.scoped.usuarios.findFirst({
                 where: {
                     email,
@@ -43,18 +41,15 @@ export class AuthService {
                             roles_usuarios: true,
                         },
                     },
-                    sedes: true,
+                    distritos: { include: { provincias: { include: { departamentos: true } } } },
                 },
             });
 
             if (!userDb) {
-                console.warn('❌ Usuario no registrado en la base de datos:', email);
                 throw new UnauthorizedException(
                     'Usuario no registrado en el sistema. Contacta al administrador.'
                 );
             }
-
-            console.log('2️⃣ Usuario encontrado en BD:', userDb.id_usuario);
 
             const updateData: any = {};
             let hasChanges = false;
@@ -103,11 +98,9 @@ export class AuthService {
                                 roles_usuarios: true,
                             },
                         },
-                        sedes: true,
+                        distritos: { include: { provincias: { include: { departamentos: true } } } },
                     },
                 });
-
-                console.log('✅ Usuario actualizado desde Google');
             }
 
             if (!userDb.estado) {
@@ -152,7 +145,7 @@ export class AuthService {
                 modulos = (modulosAsignados as any[]).map((m: any) => ({
                     id_modulo: Number(m.id_modulo),
                     nombre: m.nombre,
-                    ruta: m.ruta.startsWith('/') ? `/dashboard${m.ruta}` : `/dashboard/${m.ruta}`,
+                    ruta: '/dashboard/' + m.ruta.replace(/^\/?dashboard\//, '').replace(/^\//, '').replace(/^sedes(?=\/|$)/, 'ubicaciones'),
                     orden: Number(m.orden),
                     estado: m.estado,
                     categoria: {
@@ -188,13 +181,8 @@ export class AuthService {
                 roles,
                 modulos,
 
-                sede: userDb.sedes ? {
-                    id: Number(userDb.sedes.id_sede),
-                    nombre: userDb.sedes.nombre,
-                    tipo_sede: userDb.sedes.tipo_sede,
-                    ciudad: userDb.sedes.ciudad,
-                    departamento: userDb.sedes.departamento,
-                } : null,
+                id_ubigeo: userDb.id_ubigeo,
+                ubicacion: userDb.distritos,
             };
 
         } catch (error) {

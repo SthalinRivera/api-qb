@@ -83,11 +83,11 @@ export class ReportesController {
     return this.reportesService.getDevoluciones(query);
   }
 
-  @Get('clientes-por-sede')
+  @Get('clientes-por-ubicacion')
   @Roles('administrador', 'Supervisor')
-  @ApiOperation({ summary: 'Reporte de clientes por sede' })
-  getClientesPorSede(@Query() query: QueryReportesDto) {
-    return this.reportesService.getClientesPorSede(query);
+  @ApiOperation({ summary: 'Reporte de clientes por ubicación' })
+  getClientesPorUbicacion(@Query() query: QueryReportesDto) {
+    return this.reportesService.getClientesPorUbicacion(query);
   }
 
   @Get('clientes-por-puesto')

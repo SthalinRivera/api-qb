@@ -16,7 +16,6 @@ import { FrutasModule } from './modules/frutas/frutas.module';
 import { VariedadesModule } from './modules/variedades/variedades.module';
 import { CalidadesModule } from './modules/calidades/calidades.module';
 import { TiposJabaModule } from './modules/tipos-jaba/tipos-jaba.module';
-import { SedesModule } from './modules/sedes/sedes.module';
 import { CamionesModule } from './modules/camiones/camiones.module';
 import { LugaresOperativosModule } from './modules/lugares-operativos/lugares-operativos.module';
 import { PuestosModule } from './modules/puestos/puestos.module';
@@ -36,7 +35,7 @@ import { RolesModulosModule } from './modules/roles-modulos/roles-modulos.module
 import { ReportesModule } from './modules/reportes/reportes.module';
 
 @Module({
-  imports: [AuthModule, EmpresasModule, UsuariosModule, RolesUsuariosModule, ClientesModule, FrutasModule, VariedadesModule, CalidadesModule, TiposJabaModule, SedesModule, CamionesModule, LugaresOperativosModule, PuestosModule, OperacionesCargaModule, DetalleCargaModule, ItemsRepartoModule, GuiasOperativasModule, EntregasModule, DashboardModule, IncidenciasModule, JabasModule, EvidenciasModule, LogsActividadModule, CategoriasModule, ModulosModule, RolesModulosModule, ReportesModule],
+  imports: [AuthModule, EmpresasModule, UsuariosModule, RolesUsuariosModule, ClientesModule, FrutasModule, VariedadesModule, CalidadesModule, TiposJabaModule, CamionesModule, LugaresOperativosModule, PuestosModule, OperacionesCargaModule, DetalleCargaModule, ItemsRepartoModule, GuiasOperativasModule, EntregasModule, DashboardModule, IncidenciasModule, JabasModule, EvidenciasModule, LogsActividadModule, CategoriasModule, ModulosModule, RolesModulosModule, ReportesModule],
   controllers: [AppController, UbigeoController],
   providers: [AppService, SupabaseAuthGuard, { provide: APP_GUARD, useClass: CompanyGuard }, { provide: APP_INTERCEPTOR, useClass: CompanyInterceptor }],
 })

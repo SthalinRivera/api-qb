@@ -8,7 +8,7 @@ export class ClientePuestoResponseDto {
     };
     puesto!: {
         id_puesto: number;
-        numero_puesto: string;
+        codigo_puesto: string;
         mercado: string;
         sede: string;
     };

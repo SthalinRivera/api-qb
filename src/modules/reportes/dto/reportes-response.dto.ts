@@ -23,7 +23,7 @@ export interface ReporteItemsReparto {
   id_item_reparto: number;
   detalle_carga: { id_detalle_carga: number };
   cliente_receptor?: { id_cliente: number; nombres: string; apellidos?: string };
-  puesto: { id_puesto: number; numero_puesto: string };
+  puesto: { id_puesto: number; codigo_puesto: string };
   cantidad_asignada: number;
   seccion?: string;
   guia_asociada?: { id_guia: number; numero_guia: string; estado: string };
@@ -44,7 +44,7 @@ export interface ReporteGuias {
     fecha_emision: string;
     estado: string;
     repartidor?: { nombres: string; apellidos?: string };
-    puesto?: { numero_puesto: string };
+    puesto?: { codigo_puesto: string };
     cantidad_items: number;
     entregas_realizadas: number;
   }[];
@@ -173,20 +173,20 @@ export interface ReporteDevoluciones {
   }[];
 }
 
-export interface ReporteClientesPorSede {
-  sede: { id_sede: number; nombre: string; ciudad?: string };
+export interface ReporteClientesPorUbicacion {
+  ubicacion: { id_ubigeo: string; nombre: string; ciudad?: string };
   total_clientes: number;
   clientes: {
     id_cliente: number;
     nombres: string;
     apellidos?: string;
     tipo_relacion: string;
-    puestos_asignados: { numero_puesto: string; lugar: string; seccion?: string }[];
+    puestos_asignados: { codigo_puesto: string; lugar: string; seccion?: string }[];
   }[];
 }
 
 export interface ReporteClientesPorPuesto {
-  puesto: { id_puesto: number; numero_puesto: string; lugar: string; sede: string };
+  puesto: { id_puesto: number; codigo_puesto: string; lugar: string; ubicacion: string };
   total_clientes: number;
   clientes: {
     id_cliente: number;
@@ -207,7 +207,7 @@ export interface ReporteHistorialAsignacionPuestos {
     estado: boolean;
     seccion?: string;
     cliente: { id_cliente: number; nombres: string; apellidos?: string };
-    puesto: { id_puesto: number; numero_puesto: string; lugar: string };
+    puesto: { id_puesto: number; codigo_puesto: string; lugar: string };
   }[];
 }
 
@@ -261,7 +261,7 @@ export interface ReporteUsuariosRoles {
     apellidos?: string;
     email: string;
     estado: boolean;
-    sede: string;
+    ubicacion: string;
     roles: string[];
     total_operaciones: number;
     total_entregas: number;

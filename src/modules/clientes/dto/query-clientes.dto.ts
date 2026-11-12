@@ -1,8 +1,9 @@
+import { Matches } from 'class-validator';
 import { IsOptional, IsString, IsInt, Min, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class QueryClientesDto {
-    @IsOptional() @Type(() => Number) @IsInt() @Min(1) id_sede?: number;
+    @IsOptional() @Matches(/^\d{6}$/) id_ubigeo?: string;
     @IsOptional()
     @IsInt()
     @Min(1)

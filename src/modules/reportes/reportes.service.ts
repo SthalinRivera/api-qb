@@ -12,7 +12,7 @@ import {
   ReporteJabasPorCobrar,
   ReporteRecuperaciones,
   ReporteDevoluciones,
-  ReporteClientesPorSede,
+  ReporteClientesPorUbicacion,
   ReporteClientesPorPuesto,
   ReporteHistorialAsignacionPuestos,
   ReporteInventario,
@@ -50,7 +50,7 @@ export class ReportesService {
       where: {
         fecha_carga: { gte: inicio, lte: fin },
         ...(query.estado && { estado: query.estado }),
-        ...(query.id_sede && { id_sede_origen: BigInt(query.id_sede) }),
+        ...(query.id_ubigeo && { id_ubigeo_origen: query.id_ubigeo }),
       },
       _count: { id_operacion: true },
       orderBy: { fecha_carga: 'desc' },
@@ -183,7 +183,7 @@ export class ReportesService {
       },
       include: {
         clientes: { select: { id_cliente: true, nombres: true, apellidos: true } },
-        puestos: { select: { id_puesto: true, numero_puesto: true } },
+        puestos: { select: { id_puesto: true, codigo_puesto: true } },
         guias_operativas: {
           select: { id_guia: true, numero_guia: true, estado: true },
         },
@@ -210,7 +210,7 @@ export class ReportesService {
         : undefined,
       puesto: {
         id_puesto: Number(item.puestos.id_puesto),
-        numero_puesto: item.puestos.numero_puesto,
+        codigo_puesto: item.puestos.codigo_puesto,
       },
       cantidad_asignada: item.cantidad_asignada,
       seccion: item.seccion || undefined,
@@ -243,7 +243,7 @@ export class ReportesService {
       },
       include: {
         usuarios: { select: { nombres: true, apellidos: true } },
-        puestos: { select: { numero_puesto: true } },
+        puestos: { select: { codigo_puesto: true } },
         items_reparto: {
           select: {
             id_item_reparto: true,
@@ -277,7 +277,7 @@ export class ReportesService {
         repartidor: g.usuarios
           ? { nombres: g.usuarios.nombres, apellidos: g.usuarios.apellidos || undefined }
           : undefined,
-        puesto: g.puestos ? { numero_puesto: g.puestos.numero_puesto } : undefined,
+        puesto: g.puestos ? { codigo_puesto: g.puestos.codigo_puesto } : undefined,
         cantidad_items: g.items_reparto.items_reparto_detalle?.length || 0,
         entregas_realizadas: g.entregas.length,
       })),
@@ -649,20 +649,21 @@ export class ReportesService {
     };
   }
 
-  async getClientesPorSede(query: QueryReportesDto): Promise<ReporteClientesPorSede[]> {
+  async getClientesPorUbicacion(query: QueryReportesDto): Promise<ReporteClientesPorUbicacion[]> {
     const where: any = {
       estado: true,
       ...(query.id_cliente && { id_cliente: BigInt(query.id_cliente) }),
     };
 
-    if (query.id_sede) {
-      where.cliente_sede = { some: { id_sede: BigInt(query.id_sede) } };
+    if (query.id_ubigeo) {
+      where.cliente_distrito = { some: { id_ubigeo: query.id_ubigeo } };
     }
 
-    const sedes = await this.prisma.scoped.sedes.findMany({
-      where: query.id_sede ? { id_sede: BigInt(query.id_sede) } : { estado: true },
+    const sedes = await this.prisma.scoped.distritos.findMany({
+      where: { id_ubigeo: query.id_ubigeo, cliente_distrito: { some: { id_empresa: this.prisma.empresaId, estado: true, id_cliente: query.id_cliente } } },
       include: {
-        cliente_sede: {
+        cliente_distrito: {
+          where: { id_empresa: this.prisma.empresaId, estado: true, id_cliente: query.id_cliente },
           include: {
             clientes: {
               include: {
@@ -681,13 +682,12 @@ export class ReportesService {
     });
 
     return sedes.map((sede) => ({
-      sede: {
-        id_sede: Number(sede.id_sede),
+      ubicacion: {
+        id_ubigeo: sede.id_ubigeo,
         nombre: sede.nombre,
-        ciudad: sede.ciudad || undefined,
       },
-      total_clientes: sede.cliente_sede.length,
-      clientes: sede.cliente_sede.map((cs) => ({
+      total_clientes: sede.cliente_distrito.length,
+      clientes: sede.cliente_distrito.map((cs) => ({
         id_cliente: Number(cs.clientes.id_cliente),
         nombres: cs.clientes.nombres,
         apellidos: cs.clientes.apellidos || undefined,
@@ -695,7 +695,7 @@ export class ReportesService {
         puestos_asignados: cs.clientes.clientes_puestos
           .filter((cp) => cp.estado)
           .map((cp) => ({
-            numero_puesto: cp.puestos.numero_puesto,
+            codigo_puesto: cp.puestos.codigo_puesto,
             lugar: cp.puestos.lugares_operativos?.nombre || '',
             seccion: cp.seccion || undefined,
           })),
@@ -715,7 +715,7 @@ export class ReportesService {
         lugares_operativos: {
           select: {
             nombre: true,
-            sedes: { select: { nombre: true } },
+            distritos: { select: { nombre: true } },
           },
         },
         clientes_puestos: {
@@ -730,9 +730,9 @@ export class ReportesService {
     return puestos.map((puesto) => ({
       puesto: {
         id_puesto: Number(puesto.id_puesto),
-        numero_puesto: puesto.numero_puesto,
+        codigo_puesto: puesto.codigo_puesto,
         lugar: puesto.lugares_operativos?.nombre || '',
-        sede: puesto.lugares_operativos?.sedes?.nombre || '',
+        ubicacion: puesto.lugares_operativos?.distritos?.nombre || '',
       },
       total_clientes: puesto.clientes_puestos.length,
       clientes: puesto.clientes_puestos.map((cp) => ({
@@ -794,7 +794,7 @@ export class ReportesService {
         },
         puesto: {
           id_puesto: Number(a.puestos.id_puesto),
-          numero_puesto: a.puestos.numero_puesto,
+          codigo_puesto: a.puestos.codigo_puesto,
           lugar: a.puestos.lugares_operativos?.nombre || '',
         },
       })),
@@ -893,7 +893,7 @@ export class ReportesService {
             roles_usuarios: { select: { nombre: true } },
           },
         },
-        sedes: { select: { nombre: true } },
+        distritos: { select: { nombre: true } },
         operaciones_carga_operaciones_carga_id_encargado_cargaTousuarios: {
           select: { id_operacion: true },
         },
@@ -926,7 +926,7 @@ export class ReportesService {
         apellidos: u.apellidos || undefined,
         email: u.email,
         estado: u.estado || false,
-        sede: u.sedes?.nombre || '',
+        ubicacion: u.distritos?.nombre || '',
         roles: u.usuarios_roles.map((ur) => ur.roles_usuarios?.nombre || ''),
         total_operaciones:
           u.operaciones_carga_operaciones_carga_id_encargado_cargaTousuarios.length,

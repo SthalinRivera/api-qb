@@ -23,9 +23,9 @@ export class CompanyGuard implements CanActivate {
     req.actor = { empresaId: user.id_empresa, usuarioId: user.id_usuario, roles, repartidor, administrador };
     const root = req.path.split('/').filter(Boolean)[0] || '';
     if (root === 'auth') return true;
-    const rutas = memberships.flatMap((r) => r.roles_usuarios.roles_modulos.filter((m) => m.modulos.estado !== false).map((m) => m.modulos.ruta.replace(/^\/?dashboard\//, '').replace(/^\//, '').split('/')[0]));
-    const module = root === 'detalle-carga' ? 'operaciones-carga' : root;
-    const catalogos = ['clientes','puestos','sedes','camiones','usuarios','frutas','variedades','calidades','tipos-jaba','lugares-operativos','ubigeo'];
+    const rutas = memberships.flatMap((r) => r.roles_usuarios.roles_modulos.filter((m) => m.modulos.estado !== false).map((m) => m.modulos.ruta.replace(/^\/?dashboard\//, '').replace(/^\//, '').split('/')[0]).map(r => r === 'sedes' ? 'ubicaciones' : r));
+    const module = root === 'detalle-carga' ? 'operaciones-carga' : root === 'ubigeo' ? 'ubicaciones' : root;
+    const catalogos = ['clientes','puestos','ubicaciones','camiones','usuarios','frutas','variedades','calidades','tipos-jaba','lugares-operativos','ubigeo'];
     const operacional = rutas.some((r) => ['operaciones-carga','items-reparto','entregas','guias-operativas'].includes(r));
     if (!administrador && !rutas.includes(module) && !(req.method === 'GET' && operacional && catalogos.includes(root)))
       throw new ForbiddenException('No tienes permiso para este módulo.');
