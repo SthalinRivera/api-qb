@@ -1,4 +1,4 @@
--- Los dos checks heredados solo coincidían con el actual en 'vale'.
+git -- Los dos checks heredados solo coincidían con el actual en 'vale'.
 -- Se conserva recuperaciones_jabas_tipo_recuperacion_check y la regla de cantidad.
 -- No elimina ni transforma registros. Ejecución transaccional.
 BEGIN;

@@ -65,6 +65,53 @@ describe('Confirmar carga', () => {
     await expect(service.finalizar(1)).resolves.toMatchObject({ estado: 'en_transito' });
     expect(prisma.operaciones_carga.update).not.toHaveBeenCalled();
   });
+  it('permite iniciar reparto si un destino completo conserva una guía histórica sin cobertura', async () => {
+    const item = (cantidad_asignada: number, entregas: unknown[], guias_operativas: unknown[]) => ({
+      cantidad_asignada,
+      id_cliente_receptor: 2,
+      id_puesto: 3,
+      entregas,
+      guias_operativas,
+      resoluciones_reparto: [],
+    });
+    const detalle = {
+      id_detalle_carga: 1,
+      cantidad_jabas: 1013,
+      es_reparto: false,
+      detalle_carga_calidades: [],
+      items_reparto: [
+        item(75, [], [{ estado: 'emitida', cobertura: { cantidad: 75 } }]),
+        item(138, [{ cantidad_entregada: 138, estado_entrega: 'entregado_total' }], [{ estado: 'emitida' }]),
+        item(800, [], [{ estado: 'emitida', cobertura: { cantidad: 800 } }]),
+      ],
+    };
+    const { service, prisma } = setup('en_transito', [detalle]);
+
+    await expect(service.changeState(45, 'repartiendo')).resolves.toMatchObject({
+      estado: 'en_transito',
+    });
+    expect(prisma.operaciones_carga.update).toHaveBeenCalledWith({
+      where: { id_operacion: 45 },
+      data: { estado: 'repartiendo' },
+    });
+  });
+  it('sigue exigiendo cobertura de guía para destinos con saldo pendiente', async () => {
+    const { service } = setup('en_transito', [{
+      ...directa(),
+      items_reparto: [{
+        cantidad_asignada: 10,
+        id_cliente_receptor: 2,
+        id_puesto: 3,
+        entregas: [],
+        guias_operativas: [],
+        resoluciones_reparto: [],
+      }],
+    }]);
+
+    await expect(service.changeState(1, 'repartiendo')).rejects.toThrow(
+      'Emite las guías de todos los destinos',
+    );
+  });
   it.each(['repartiendo', 'completado', 'cancelado'])(
     'no vuelve a confirmar %s',
     async (estado) => {

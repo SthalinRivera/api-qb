@@ -22,6 +22,50 @@ describe('Emisión documental', () => {
     expect(second[0].cobertura.id_item_reparto).toBe('1');
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
   });
+  it('emite guías faltantes y conserva una guía histórica de un destino ya entregado', async () => {
+    const { service, prisma, item } = setup();
+    const guiaHistorica = { id_guia: 64n, estado: 'emitida' };
+    const destinoEntregado = {
+      ...item,
+      cantidad_asignada: 138,
+      entregas: [{ cantidad_entregada: 138, estado_entrega: 'entregado_total' }],
+      guias_operativas: [guiaHistorica],
+    };
+    const destinoPendiente = {
+      ...item,
+      id_item_reparto: 2n,
+      cantidad_asignada: 75,
+      entregas: [],
+      guias_operativas: [],
+    };
+    prisma.detalle_carga.findMany.mockResolvedValue([{
+      cantidad_jabas: 213,
+      es_reparto: false,
+      detalle_carga_calidades: [],
+      items_reparto: [destinoEntregado, destinoPendiente],
+    }]);
+    prisma.items_reparto.findMany.mockResolvedValue([destinoEntregado, destinoPendiente]);
+
+    const guias = await service.emitirOperacion(5);
+
+    expect(prisma.guias_operativas.create).toHaveBeenCalledTimes(1);
+    expect(prisma.guias_operativas.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ id_item_reparto: destinoPendiente.id_item_reparto }),
+      }),
+    );
+    expect(guias).toHaveLength(2);
+    expect(guias[0]).toBe(guiaHistorica);
+  });
   it('no emite desde preparación', async () => { const {service,prisma} = setup(); prisma.operaciones_carga.findUnique.mockResolvedValue({ estado: 'en_curso' }); await expect(service.emitirOperacion(5)).rejects.toThrow('tránsito'); });
   it('no inventa guías para entregas históricas sin documento vigente', async () => { const {service,item} = setup(); item.entregas = [{cantidad_entregada: 1}]; await expect(service.emitirOperacion(5)).rejects.toThrow('revisión documental'); });
+  it('no reutiliza una guía sin cobertura para un destino que aún tiene saldo', async () => {
+    const { service, prisma, item } = setup();
+    item.guias_operativas = [{ id_guia: 8n, estado: 'emitida' }];
+
+    await expect(service.emitirOperacion(5)).rejects.toThrow(
+      'guía histórica sin cobertura y saldo pendiente',
+    );
+    expect(prisma.guias_operativas.create).not.toHaveBeenCalled();
+  });
 });

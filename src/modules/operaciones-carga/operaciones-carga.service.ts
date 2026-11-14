@@ -1,6 +1,6 @@
 import { clienteValido, destinosDisponibles, usuarioValido, validarReceptor } from '../opciones-flujo/reglas-opciones';
 import { validarTransicion } from './estados-operacion';
-import { resumenReparto } from './resumen-reparto';
+import { calcularSaldoDestino, resumenReparto } from './resumen-reparto';
 import { exigirSupervisor } from '../../common/security/request-context';
 // operaciones-carga.service.ts
 import {
@@ -196,7 +196,10 @@ export class OperacionesCargaService {
       const resumen = resumenReparto(op.detalle_carga);
       if (newState === 'repartiendo') {
         if (!resumen.preparada) throw new BadRequestException('Completa la clasificación y asignación antes de iniciar el reparto.');
-        if (op.detalle_carga.some((d) => d.items_reparto.some((i) => !i.guias_operativas.some((g) => !['anulada','reemplazada'].includes(g.estado || '') && g.cobertura))))
+        if (op.detalle_carga.some((d) => d.items_reparto.some((i) =>
+          calcularSaldoDestino(i).saldo > 0 &&
+          !i.guias_operativas.some((g) => !['anulada','reemplazada'].includes(g.estado || '') && g.cobertura),
+        )))
           throw new BadRequestException('Emite las guías de todos los destinos antes de iniciar el reparto.');
       }
       if (newState === 'completado') {

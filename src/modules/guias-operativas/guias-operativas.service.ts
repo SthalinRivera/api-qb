@@ -1,4 +1,4 @@
-import { resumenReparto } from '../operaciones-carga/resumen-reparto';
+import { calcularSaldoDestino, resumenReparto } from '../operaciones-carga/resumen-reparto';
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../config/prisma/prisma.service';
 import { CreateGuiaOperativaDto } from './dto/create-guias-operativa.dto';
@@ -26,15 +26,21 @@ export class GuiasOperativasService {
       const cargas = await tx.detalle_carga.findMany({ where: { id_operacion: operacionId }, include: { detalle_carga_calidades: true, items_reparto: { include: { items_reparto_detalle: true, entregas: true, resoluciones_reparto: true } } } });
       if (!resumenReparto(cargas).preparada) throw new BadRequestException('Completa y concilia la clasificación y las asignaciones antes de emitir.');
       const items = await tx.items_reparto.findMany({ where: { detalle_carga: { id_operacion: operacionId }, ...(itemId ? { id_item_reparto: itemId } : {}) }, include: {
-        clientes: true, puestos: { include: { lugares_operativos: true } }, guias_operativas: true, entregas: true,
+        clientes: true, puestos: { include: { lugares_operativos: true } }, guias_operativas: true, entregas: true, resoluciones_reparto: true,
         detalle_carga: { include: { frutas: true, variedades: true, tipos_jaba: true, clientes: true } },
         items_reparto_detalle: { include: { detalle_carga_calidades: { include: { calidades: true } } } },
       } });
       if (!items.length) throw new BadRequestException('No hay destinos para emitir.');
       const guias: any[] = [];
       for (const item of items) {
-        const vigente = item.guias_operativas.find((g) => !['anulada','reemplazada'].includes(g.estado || ''));
+        const activas = item.guias_operativas.filter((g) => !['anulada','reemplazada'].includes(g.estado || ''));
+        const vigente = activas.find((g) => g.cobertura);
         if (vigente) { guias.push(vigente); continue; }
+        if (calcularSaldoDestino(item).saldo === 0) {
+          if (activas[0]) guias.push(activas[0]);
+          continue;
+        }
+        if (activas.length) throw new BadRequestException('El destino tiene una guía histórica sin cobertura y saldo pendiente. Revisa el documento antes de emitir otra guía.');
         if (item.entregas.length) throw new BadRequestException('El destino tiene entregas históricas sin guía vigente. Requiere revisión documental.');
         const detalle = item.detalle_carga;
         if (item.cantidad_asignada <= 0 || (detalle.es_reparto && item.items_reparto_detalle.reduce((sum, d) => sum + d.cantidad, 0) !== item.cantidad_asignada))

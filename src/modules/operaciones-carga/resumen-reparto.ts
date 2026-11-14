@@ -1,4 +1,24 @@
 /** Saldos locales antes de sumar: un exceso de una línea nunca compensa otra. */
+export function calcularSaldoDestino(item: {
+  cantidad_asignada: number;
+  entregas?: { cantidad_entregada: number; estado_entrega: string }[];
+  resoluciones_reparto?: { cantidad: number }[];
+}) {
+  const recibidas = (item.entregas || [])
+    .filter((e) => e.estado_entrega !== 'pendiente')
+    .reduce((sum, e) => sum + e.cantidad_entregada, 0);
+  const resueltas = (item.resoluciones_reparto || []).reduce(
+    (sum, r) => sum + r.cantidad,
+    0,
+  );
+  return {
+    recibidas,
+    resueltas,
+    saldo: Math.max(0, item.cantidad_asignada - recibidas - resueltas),
+    exceso: Math.max(0, recibidas + resueltas - item.cantidad_asignada),
+  };
+}
+
 export function resumenReparto(cargas: any[]) {
   const puestos = new Set<string>();
   const lineas = cargas.map((carga) => {
@@ -16,12 +36,11 @@ export function resumenReparto(cargas: any[]) {
     });
     const destinos = items.map((item: any) => {
       if (item.id_puesto) puestos.add(String(item.id_puesto));
-      const recibidas = (item.entregas || []).filter((e: any) => e.estado_entrega !== 'pendiente').reduce((s: number, e: any) => s + e.cantidad_entregada, 0);
-      const resueltas = (item.resoluciones_reparto || []).reduce((s: number, r: any) => s + r.cantidad, 0);
+      const { recibidas, resueltas, saldo, exceso } = calcularSaldoDestino(item);
       const desglose = (item.items_reparto_detalle || []).reduce((s: number, d: any) => s + d.cantidad, 0);
       const desgloseInvalido = requiereCalidad && (desglose !== item.cantidad_asignada || (item.items_reparto_detalle || []).some((d: any) => !calidades.some((c: any) => String(c.id_detalle_carga_calidad) === String(d.id_detalle_carga_calidad))));
       return { id_item_reparto: item.id_item_reparto, asignadas: item.cantidad_asignada, recibidas, resueltas,
-        saldo: Math.max(0, item.cantidad_asignada - recibidas - resueltas), exceso: Math.max(0, recibidas + resueltas - item.cantidad_asignada),
+        saldo, exceso,
         destinoIncompleto: !item.id_cliente_receptor || !item.id_puesto || item.cantidad_asignada <= 0, desgloseInvalido, resuelto: item.cantidad_asignada > 0 && recibidas + resueltas === item.cantidad_asignada };
     });
     return { id_detalle_carga: carga.id_detalle_carga, cargadas: carga.cantidad_jabas, asignadas: asignado,
