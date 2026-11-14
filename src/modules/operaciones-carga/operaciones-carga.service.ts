@@ -1,3 +1,4 @@
+import { clienteValido, destinosDisponibles, usuarioValido, validarReceptor } from '../opciones-flujo/reglas-opciones';
 import { validarTransicion } from './estados-operacion';
 import { resumenReparto } from './resumen-reparto';
 import { exigirSupervisor } from '../../common/security/request-context';
@@ -16,6 +17,7 @@ import {
   resumenFlujo,
 } from './flujo-operacion';
 import { GuiasOperativasService } from '../guias-operativas/guias-operativas.service';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class OperacionesCargaService {
@@ -30,30 +32,32 @@ export class OperacionesCargaService {
         'Una operación nueva debe comenzar pendiente.',
       );
     // Verificar que todas las relaciones (sede, camión, usuarios) existan en la base de datos
-    await this.validateRelations(createDto);
+    return this.prisma.scoped.$transaction(async tx => {
+      await this.validateRelations(createDto, tx);
 
-    return this.prisma.scoped.operaciones_carga.create({
-      data: {
-        id_empresa: this.prisma.empresaId, // TODO: Reemplazar con el id_empresa del token JWT del usuario autenticado
-        id_ubigeo_origen: createDto.id_ubigeo_origen,
-        id_ubigeo_destino: createDto.id_ubigeo_destino,
-        id_camion: createDto.id_camion,
-        id_encargado_carga: createDto.id_encargado_carga,
-        id_repartidor_asignado: createDto.id_repartidor_asignado,
-        fecha_carga: new Date(createDto.fecha_carga), // Convierte string a Date
-        hora_carga: createDto.hora_carga
-          ? new Date(`1970-01-01T${createDto.hora_carga}`)
-          : undefined, // Convierte hora (HH:MM) a Date
-        estado: createDto.estado ?? 'pendiente', // Por defecto 'pendiente'
-        observaciones: createDto.observaciones,
-      },
-      include: {
-        camiones: true,
-        distritos_operaciones_carga_id_ubigeo_origenTodistritos: true,
-        distritos_operaciones_carga_id_ubigeo_destinoTodistritos: true,
-        usuarios_operaciones_carga_id_encargado_cargaTousuarios: true,
-        usuarios_operaciones_carga_id_repartidor_asignadoTousuarios: true,
-      },
+      return tx.operaciones_carga.create({
+        data: {
+          id_empresa: this.prisma.empresaId, // TODO: Reemplazar con el id_empresa del token JWT del usuario autenticado
+          id_ubigeo_origen: createDto.id_ubigeo_origen,
+          id_ubigeo_destino: createDto.id_ubigeo_destino,
+          id_camion: createDto.id_camion,
+          id_encargado_carga: createDto.id_encargado_carga,
+          id_repartidor_asignado: createDto.id_repartidor_asignado,
+          fecha_carga: new Date(createDto.fecha_carga), // Convierte string a Date
+          hora_carga: createDto.hora_carga
+            ? new Date(`1970-01-01T${createDto.hora_carga}`)
+            : undefined, // Convierte hora (HH:MM) a Date
+          estado: createDto.estado ?? 'pendiente', // Por defecto 'pendiente'
+          observaciones: createDto.observaciones,
+        },
+        include: {
+          camiones: true,
+          distritos_operaciones_carga_id_ubigeo_origenTodistritos: true,
+          distritos_operaciones_carga_id_ubigeo_destinoTodistritos: true,
+          usuarios_operaciones_carga_id_encargado_cargaTousuarios: true,
+          usuarios_operaciones_carga_id_repartidor_asignadoTousuarios: true,
+        },
+      });
     });
   }
 
@@ -123,47 +127,59 @@ export class OperacionesCargaService {
   }
 
   async update(id: number, updateDto: UpdateOperacionCargaDto) {
-    const operacion = await this.findOne(id);
-    if (!cargaEditable(operacion.estado)) {
-      throw new BadRequestException(
-        'No se puede modificar una operación fuera de preparación',
-      );
-    }
+    return this.prisma.scoped.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${BigInt(id)} AND id_empresa = ${this.prisma.empresaId} FOR UPDATE`;
+      const operacion = await tx.operaciones_carga.findUnique({ where: { id_operacion: id } });
+      if (!operacion) throw new NotFoundException('Operación no encontrada.');
+      if (!cargaEditable(operacion.estado)) {
+        throw new BadRequestException(
+          'No se puede modificar una operación fuera de preparación',
+        );
+      }
 
-    if (Object.keys(updateDto).length === 0) {
-      throw new BadRequestException('No se enviaron datos para actualizar');
-    }
+      if (Object.keys(updateDto).length === 0) {
+        throw new BadRequestException('No se enviaron datos para actualizar');
+      }
 
-    if (updateDto.estado && updateDto.estado !== operacion.estado)
-      throw new BadRequestException(
-        'Usa la acción de estado para cambiar de etapa.',
-      );
-    await this.validateRelations(updateDto, id);
+      if (updateDto.estado && updateDto.estado !== operacion.estado)
+        throw new BadRequestException(
+          'Usa la acción de estado para cambiar de etapa.',
+        );
+      await this.validateRelations({ ...operacion, ...updateDto }, tx);
+      if (updateDto.id_ubigeo_origen && updateDto.id_ubigeo_origen !== operacion.id_ubigeo_origen && await tx.detalle_carga.count({ where: { id_operacion: id, NOT: { clientes: clienteValido(this.prisma.empresaId, updateDto.id_ubigeo_origen, 'emisor') } } })) throw new BadRequestException('Hay productos cuyos emisores no pertenecen al nuevo origen.');
+      if (updateDto.id_ubigeo_destino && updateDto.id_ubigeo_destino !== operacion.id_ubigeo_destino) {
+        const items = await tx.items_reparto.findMany({ where: { detalle_carga: { id_operacion: id } }, select: { id_cliente_receptor: true, id_puesto: true, seccion: true } });
+        for (const item of items) {
+          if (!item.id_cliente_receptor || !item.id_puesto) throw new BadRequestException('Completa receptor y puesto antes de cambiar el destino.');
+          await validarReceptor(tx, this.prisma.empresaId, updateDto.id_ubigeo_destino, item.id_cliente_receptor, item.id_puesto, item.seccion);
+        }
+      }
 
-    return this.prisma.scoped.operaciones_carga.update({
-      where: { id_operacion: id, estado: operacion.estado },
-      data: {
-        id_ubigeo_origen: updateDto.id_ubigeo_origen,
-        id_ubigeo_destino: updateDto.id_ubigeo_destino,
-        id_camion: updateDto.id_camion,
-        id_encargado_carga: updateDto.id_encargado_carga,
-        id_repartidor_asignado: updateDto.id_repartidor_asignado,
-        fecha_carga: updateDto.fecha_carga
-          ? new Date(updateDto.fecha_carga)
-          : undefined,
-        hora_carga: updateDto.hora_carga
-          ? new Date(`1970-01-01T${updateDto.hora_carga}`)
-          : undefined,
+      return tx.operaciones_carga.update({
+        where: { id_operacion: id, estado: operacion.estado },
+        data: {
+          id_ubigeo_origen: updateDto.id_ubigeo_origen,
+          id_ubigeo_destino: updateDto.id_ubigeo_destino,
+          id_camion: updateDto.id_camion,
+          id_encargado_carga: updateDto.id_encargado_carga,
+          id_repartidor_asignado: updateDto.id_repartidor_asignado,
+          fecha_carga: updateDto.fecha_carga
+            ? new Date(updateDto.fecha_carga)
+            : undefined,
+          hora_carga: updateDto.hora_carga
+            ? new Date(`1970-01-01T${updateDto.hora_carga}`)
+            : undefined,
 
-        observaciones: updateDto.observaciones,
-      },
-      include: {
-        camiones: true,
-        distritos_operaciones_carga_id_ubigeo_origenTodistritos: true,
-        distritos_operaciones_carga_id_ubigeo_destinoTodistritos: true,
-        usuarios_operaciones_carga_id_encargado_cargaTousuarios: true,
-        usuarios_operaciones_carga_id_repartidor_asignadoTousuarios: true,
-      },
+          observaciones: updateDto.observaciones,
+        },
+        include: {
+          camiones: true,
+          distritos_operaciones_carga_id_ubigeo_origenTodistritos: true,
+          distritos_operaciones_carga_id_ubigeo_destinoTodistritos: true,
+          usuarios_operaciones_carga_id_encargado_cargaTousuarios: true,
+          usuarios_operaciones_carga_id_repartidor_asignadoTousuarios: true,
+        },
+      });
     });
   }
 
@@ -198,9 +214,12 @@ export class OperacionesCargaService {
         detalle_carga: { include: { detalle_carga_calidades: true, items_reparto: { include: { items_reparto_detalle: true, entregas: true } } } },
       } });
       if (!op) throw new NotFoundException('Operación no encontrada.');
-      validarTransicion(op.estado, 'en_transito');
+      // Finalizar la preparación es independiente de asignar los destinos.
+      if (op.estado === 'en_transito') return op;
+      if (op.estado !== 'pendiente') validarTransicion(op.estado, 'en_transito');
       const resumen = resumenReparto(op.detalle_carga);
-      if (!resumen.preparada) throw new BadRequestException({ message: 'Completa las calidades y los destinos de toda la carga.', resumen });
+      if (!op.detalle_carga.length || op.detalle_carga.some(d => d.cantidad_jabas <= 0) || resumen.jabasSinClasificar || resumen.excesosClasificacion)
+        throw new BadRequestException({ message: 'Completa las calidades de toda la carga antes de terminar la preparación.', resumen });
       return tx.operaciones_carga.update({ where: { id_operacion: operacionId }, data: { estado: 'en_transito' } });
     });
   }
@@ -217,57 +236,13 @@ export class OperacionesCargaService {
     return { data: operaciones.map(({ detalle_carga, ...op }) => ({ ...op, resumen: resumenReparto(detalle_carga) })), total, page, limit };
   }
 
-  private async validateRelations(dto: any, excludeId?: number) {
-    const {
-      id_ubigeo_origen,
-      id_ubigeo_destino,
-      id_camion,
-      id_encargado_carga,
-      id_repartidor_asignado,
-    } = dto;
-
-    if (id_ubigeo_origen) {
-      const exists = await this.prisma.scoped.distritos.findUnique({
-        where: { id_ubigeo: id_ubigeo_origen },
-      });
-      if (!exists)
-        throw new BadRequestException(
-          `Sede origen con ID ${id_ubigeo_origen} no existe`,
-        );
-    }
-    if (id_ubigeo_destino) {
-      const exists = await this.prisma.scoped.distritos.findUnique({
-        where: { id_ubigeo: id_ubigeo_destino },
-      });
-      if (!exists)
-        throw new BadRequestException(
-          `Sede destino con ID ${id_ubigeo_destino} no existe`,
-        );
-    }
-    if (id_camion) {
-      const exists = await this.prisma.scoped.camiones.findUnique({
-        where: { id_camion },
-      });
-      if (!exists)
-        throw new BadRequestException(`Camión con ID ${id_camion} no existe`);
-    }
-    if (id_encargado_carga) {
-      const exists = await this.prisma.scoped.usuarios.findUnique({
-        where: { id_usuario: id_encargado_carga },
-      });
-      if (!exists)
-        throw new BadRequestException(
-          `Usuario (encargado) con ID ${id_encargado_carga} no existe`,
-        );
-    }
-    if (id_repartidor_asignado) {
-      const exists = await this.prisma.scoped.usuarios.findUnique({
-        where: { id_usuario: id_repartidor_asignado },
-      });
-      if (!exists)
-        throw new BadRequestException(
-          `Usuario (repartidor) con ID ${id_repartidor_asignado} no existe`,
-        );
+  private async validateRelations(dto: any, db: Prisma.TransactionClient) {
+    const empresa = this.prisma.empresaId;
+    if (!await db.clientes.findFirst({ where: clienteValido(empresa, dto.id_ubigeo_origen, 'emisor'), select: { id_cliente: true } })) throw new BadRequestException('El origen no tiene emisores activos de esta empresa.');
+    if (!(await destinosDisponibles(db, empresa, dto.id_ubigeo_destino)).length) throw new BadRequestException('El destino no tiene receptores y puestos activos de esta empresa.');
+    if (!await db.camiones.findFirst({ where: { id_camion: dto.id_camion, estado: true }, select: { id_camion: true } })) throw new BadRequestException('El camión no está disponible.');
+    for (const [id, rol] of [[dto.id_encargado_carga, 'encargado_carga'], [dto.id_repartidor_asignado, 'repartidor']] as const) {
+      if (id && !await db.usuarios.findFirst({ where: { id_usuario: id, ...usuarioValido(empresa, rol) }, select: { id_usuario: true } })) throw new BadRequestException('El responsable no está activo o no tiene el rol requerido.');
     }
   }
 

@@ -12,7 +12,7 @@ export class CompanyGuard implements CanActivate {
     if (!req.user.email) throw new ForbiddenException('El perfil autenticado requiere email.');
     const users = await this.prisma.usuarios.findMany({
       where: { estado: true, OR: [{ google_uid: req.user.id }, { google_uid: null, email: req.user.email }] },
-      include: { usuarios_roles: { include: { roles_usuarios: { include: { roles_modulos: { include: { modulos: true } } } } } } },
+      select: { id_empresa: true, id_usuario: true, usuarios_roles: { select: { roles_usuarios: { select: { nombre: true, estado: true, roles_modulos: { select: { modulos: { select: { estado: true, ruta: true } } } } } } } } },
     });
     if (users.length !== 1) throw new ForbiddenException('Perfil inexistente o ambiguo. Contacta al administrador.');
     const user = users[0];
@@ -25,7 +25,7 @@ export class CompanyGuard implements CanActivate {
     if (root === 'auth') return true;
     const rutas = memberships.flatMap((r) => r.roles_usuarios.roles_modulos.filter((m) => m.modulos.estado !== false).map((m) => m.modulos.ruta.replace(/^\/?dashboard\//, '').replace(/^\//, '').split('/')[0]).map(r => r === 'sedes' ? 'ubicaciones' : r));
     const module = root === 'detalle-carga' ? 'operaciones-carga' : root === 'ubigeo' ? 'ubicaciones' : root;
-    const catalogos = ['clientes','puestos','ubicaciones','camiones','usuarios','frutas','variedades','calidades','tipos-jaba','lugares-operativos','ubigeo'];
+    const catalogos = ['opciones-flujo','clientes','puestos','ubicaciones','camiones','usuarios','frutas','variedades','calidades','tipos-jaba','lugares-operativos','ubigeo'];
     const operacional = rutas.some((r) => ['operaciones-carga','items-reparto','entregas','guias-operativas'].includes(r));
     if (!administrador && !rutas.includes(module) && !(req.method === 'GET' && operacional && catalogos.includes(root)))
       throw new ForbiddenException('No tienes permiso para este módulo.');

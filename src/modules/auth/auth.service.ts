@@ -13,7 +13,7 @@ export class AuthService {
         private prisma: PrismaService,
     ) { }
 
-    async getProfile(authPayload: any) {
+    async getProfile(authPayload: any, sessionOnly = false) {
         try {
             const { user } = authPayload;
 
@@ -29,20 +29,19 @@ export class AuthService {
                 throw new UnauthorizedException('El token no contiene email');
             }
 
+            const selection = {
+                id_usuario: true, id_empresa: true, email: true, nombres: true, apellidos: true,
+                avatar_url: true, estado: true, google_uid: true, telefono: true,
+                ...(!sessionOnly ? { created_at: true, id_ubigeo: true, distritos: { include: { provincias: { include: { departamentos: true } } } } } : {}),
+                empresas: { select: { id_empresa: true, razon_social: true, nombre_comercial: true, ...(!sessionOnly ? { ruc: true } : {}) } },
+                usuarios_roles: { where: { roles_usuarios: { estado: true } }, select: { roles_usuarios: { select: { id_rol_usuario: true, nombre: true, ...(!sessionOnly ? { descripcion: true } : {}) } } } },
+            } satisfies Prisma.usuariosSelect;
             let userDb: any = await this.prisma.scoped.usuarios.findFirst({
                 where: {
                     email,
                     estado: true,
                 },
-                include: {
-                    empresas: true,
-                    usuarios_roles: {
-                        include: {
-                            roles_usuarios: true,
-                        },
-                    },
-                    distritos: { include: { provincias: { include: { departamentos: true } } } },
-                },
+                select: selection,
             });
 
             if (!userDb) {
@@ -91,15 +90,7 @@ export class AuthService {
                         id_usuario: userDb.id_usuario,
                     },
                     data: updateData,
-                    include: {
-                        empresas: true,
-                        usuarios_roles: {
-                            include: {
-                                roles_usuarios: true,
-                            },
-                        },
-                        distritos: { include: { provincias: { include: { departamentos: true } } } },
-                    },
+                    select: selection,
                 });
             }
 
@@ -158,7 +149,7 @@ export class AuthService {
                 }));
             }
 
-            return {
+            const profile = {
                 id: Number(userDb.id_usuario),
                 id_empresa: Number(userDb.id_empresa),
 
@@ -184,6 +175,11 @@ export class AuthService {
                 id_ubigeo: userDb.id_ubigeo,
                 ubicacion: userDb.distritos,
             };
+            if (sessionOnly) return { id: profile.id, id_empresa: profile.id_empresa,
+                empresa: profile.empresa && { id: profile.empresa.id, razon_social: profile.empresa.razon_social, nombre_comercial: profile.empresa.nombre_comercial },
+                email: profile.email, nombres: profile.nombres, apellidos: profile.apellidos, avatar_url: profile.avatar_url,
+                roles: roles.map(({ id, nombre }) => ({ id, nombre })), modulos };
+            return profile;
 
         } catch (error) {
             console.error('❌ Error en getProfile:', error);

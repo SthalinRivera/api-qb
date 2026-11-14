@@ -117,7 +117,8 @@ export class EntregasService {
         const usuario = await tx.usuarios.findFirst({
           where: {
             id_usuario: createDto.id_entregador,
-            id_empresa: item.id_empresa,
+            id_empresa: item.id_empresa, estado: true,
+            usuarios_roles: { some: { roles_usuarios: { nombre: 'repartidor', estado: true } } },
           },
         });
         if (!usuario)
@@ -197,9 +198,16 @@ export class EntregasService {
 
   async findAll(query: QueryEntregasDto) {
     const where: any = {};
+    const detalleCarga: any = {};
     if (query.id_operacion)
+      detalleCarga.id_operacion = BigInt(query.id_operacion);
+    if (query.id_calidad)
+      detalleCarga.detalle_carga_calidades = {
+        some: { id_calidad: BigInt(query.id_calidad) },
+      };
+    if (Object.keys(detalleCarga).length)
       where.items_reparto = {
-        detalle_carga: { id_operacion: query.id_operacion },
+        detalle_carga: detalleCarga,
       };
     if (query.id_guia) where.id_guia = query.id_guia;
     if (query.id_item_reparto) where.id_item_reparto = query.id_item_reparto;
@@ -219,6 +227,55 @@ export class EntregasService {
       },
       orderBy: { fecha_entrega: 'desc' },
     });
+  }
+
+  async findTransitPending(query: QueryEntregasDto) {
+    const where: any = { estado: 'en_transito' };
+    if (query.id_operacion)
+      where.id_operacion = BigInt(query.id_operacion);
+    if (query.fecha_carga) {
+      const start = new Date(query.fecha_carga);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 1);
+      where.fecha_carga = { gte: start, lt: end };
+    }
+    if (query.id_calidad)
+      where.detalle_carga = {
+        some: {
+          detalle_carga_calidades: {
+            some: { id_calidad: BigInt(query.id_calidad) },
+          },
+        },
+      };
+
+    const operaciones = await this.prisma.scoped.operaciones_carga.findMany({
+      where,
+      select: {
+        id_operacion: true,
+        fecha_carga: true,
+        detalle_carga: {
+          select: {
+            cantidad_jabas: true,
+            items_reparto: { select: { id_item_reparto: true } },
+          },
+        },
+      },
+      orderBy: [{ fecha_carga: 'desc' }, { id_operacion: 'desc' }],
+    });
+
+    return operaciones.map((operacion) => ({
+      id_operacion: Number(operacion.id_operacion),
+      fecha_carga: operacion.fecha_carga,
+      estado: 'en_transito',
+      cantidad_jabas: operacion.detalle_carga.reduce(
+        (total, detalle) => total + detalle.cantidad_jabas,
+        0,
+      ),
+      cantidad_destinos: operacion.detalle_carga.reduce(
+        (total, detalle) => total + detalle.items_reparto.length,
+        0,
+      ),
+    }));
   }
 
   async findOne(id: number) {

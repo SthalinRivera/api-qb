@@ -6,6 +6,12 @@ export class QueryEntregasDto {
     @Type(() => Number)
     @IsInt()
     id_operacion?: number;
+
+    @IsOptional()
+    @Type(() => Number)
+    @IsInt()
+    id_calidad?: number;
+
     @IsOptional()
     @IsInt()
     id_guia?: number;
@@ -17,6 +23,10 @@ export class QueryEntregasDto {
     @IsOptional()
     @IsDateString()
     fecha_entrega?: string;
+
+    @IsOptional()
+    @IsDateString()
+    fecha_carga?: string;
 
     @IsOptional()
     @IsString()

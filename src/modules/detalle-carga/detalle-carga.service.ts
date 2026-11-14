@@ -1,3 +1,4 @@
+import { clienteValido, validarReceptor } from '../opciones-flujo/reglas-opciones';
 import { operacionAbierta } from '../operaciones-carga/estados-operacion';
 import { Prisma } from '@prisma/client';
 import { cargaEditable } from '../operaciones-carga/flujo-operacion';
@@ -59,7 +60,6 @@ export class DetalleCargaService {
       throw new BadRequestException(
         'Asigna los receptores después de clasificar la carga para reparto.',
       );
-    await this.validateRelations(dto);
 
     return this.prisma.scoped.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${BigInt(operacionId)} AND id_empresa = ${this.prisma.empresaId} FOR UPDATE`;
@@ -68,6 +68,8 @@ export class DetalleCargaService {
       });
       if (!operacionAbierta(actual.estado))
         throw new BadRequestException('La carga ya fue confirmada.');
+      await this.validateRelations(dto, actual.id_ubigeo_origen, tx);
+      if (dto.id_cliente_receptor && dto.id_puesto) await validarReceptor(tx, actual.id_empresa, actual.id_ubigeo_destino, dto.id_cliente_receptor, dto.id_puesto, dto.id_seccion);
       const ultimo = await tx.detalle_carga.aggregate({ where: { id_operacion: operacionId }, _max: { orden_carga: true } });
       const orden = dto.orden_carga ?? (ultimo._max.orden_carga || 0) + 1;
       if (await tx.detalle_carga.count({ where: { id_operacion: operacionId, orden_carga: orden } })) throw new BadRequestException('El orden ya está ocupado.');
@@ -289,11 +291,12 @@ export class DetalleCargaService {
         const receptor = dto.id_cliente_receptor ?? item.id_cliente_receptor;
         const puesto = dto.id_puesto ?? item.id_puesto;
         if (!receptor || !puesto) throw new BadRequestException('Selecciona receptor y puesto.');
+        await validarReceptor(tx, detalle.id_empresa, detalle.operaciones_carga.id_ubigeo_destino, receptor, puesto, dto.id_seccion);
         const relacion = await tx.clientes_puestos.findFirst({ where: { id_cliente: receptor, id_puesto: puesto, estado: true, fecha_fin: null, ...(dto.id_seccion ? { seccion: dto.id_seccion } : {}) } });
         if (!relacion) throw new BadRequestException('El receptor no tiene ese puesto activo.');
         await tx.items_reparto.update({ where: { id_item_reparto: item.id_item_reparto }, data: { id_cliente_receptor: receptor, id_puesto: puesto, seccion: dto.id_seccion ?? relacion.seccion } });
       }
-      await this.validateRelations(dto);
+      await this.validateRelations({ ...detalle, ...dto }, detalle.operaciones_carga.id_ubigeo_origen, tx);
       return tx.detalle_carga.update({
         where: { id_detalle_carga: id },
         data: {
@@ -424,7 +427,7 @@ export class DetalleCargaService {
       const calidad = await tx.calidades.findUnique({
         where: { id_calidad: dto.id_calidad },
       });
-      if (!calidad) {
+      if (!calidad || !calidad.estado) {
         throw new NotFoundException(
           `Calidad con ID ${dto.id_calidad} no existe`,
         );
@@ -471,6 +474,7 @@ export class DetalleCargaService {
         tx,
         Number(calidad.id_detalle_carga),
       );
+      if (!await tx.calidades.findFirst({ where: { id_calidad: dto.id_calidad ?? calidad.id_calidad, estado: true }, select: { id_calidad: true } })) throw new BadRequestException('La calidad ya no está disponible.');
       const asignaciones = await tx.items_reparto_detalle.findMany({ where: { id_detalle_carga_calidad: calidadId }, include: { items_reparto: { include: { entregas: true, guias_operativas: true, resoluciones_reparto: true } } } });
       const asignado = asignaciones.reduce((sum, a) => sum + a.cantidad, 0);
       if (dto.cantidad !== undefined && dto.cantidad < asignado) throw new BadRequestException('Reajusta primero las asignaciones: la calidad no puede quedar por debajo de lo asignado.');
@@ -531,42 +535,11 @@ export class DetalleCargaService {
    * Valida que las entidades referenciadas (cliente, fruta, variedad, tipo_jaba) existan.
    * Se usa tanto en creación como en actualización.
    */
-  private async validateRelations(dto: any) {
-    const { id_cliente_emisor, id_fruta, id_variedad, id_tipo_jaba } = dto;
-
-    if (id_cliente_emisor) {
-      const exists = await this.prisma.scoped.clientes.findUnique({
-        where: { id_cliente: id_cliente_emisor },
-      });
-      if (!exists)
-        throw new BadRequestException(
-          `Cliente con ID ${id_cliente_emisor} no existe`,
-        );
-    }
-    if (id_fruta) {
-      const exists = await this.prisma.scoped.frutas.findUnique({
-        where: { id_fruta },
-      });
-      if (!exists)
-        throw new BadRequestException(`Fruta con ID ${id_fruta} no existe`);
-    }
-    if (id_variedad) {
-      const exists = await this.prisma.scoped.variedades.findUnique({
-        where: { id_variedad },
-      });
-      if (!exists)
-        throw new BadRequestException(
-          `Variedad con ID ${id_variedad} no existe`,
-        );
-    }
-    if (id_tipo_jaba) {
-      const exists = await this.prisma.scoped.tipos_jaba.findUnique({
-        where: { id_tipo_jaba },
-      });
-      if (!exists)
-        throw new BadRequestException(
-          `Tipo de jaba con ID ${id_tipo_jaba} no existe`,
-        );
-    }
+  private async validateRelations(dto: any, origen: string, db: any) {
+    const empresa = this.prisma.empresaId;
+    if (!await db.clientes.findFirst({ where: { id_cliente: dto.id_cliente_emisor, ...clienteValido(empresa, origen, 'emisor') }, select: { id_cliente: true } })) throw new BadRequestException('El emisor no está activo en el origen de la operación.');
+    if (!await db.frutas.findFirst({ where: { id_fruta: dto.id_fruta, id_empresa: empresa, estado: true }, select: { id_fruta: true } })) throw new BadRequestException('La fruta no está disponible.');
+    if (dto.id_variedad && !await db.variedades.findFirst({ where: { id_variedad: dto.id_variedad, id_fruta: dto.id_fruta, id_empresa: empresa, estado: true }, select: { id_variedad: true } })) throw new BadRequestException('La variedad no está disponible para la fruta seleccionada.');
+    if (!await db.tipos_jaba.findFirst({ where: { id_tipo_jaba: dto.id_tipo_jaba, id_empresa: empresa, estado: true }, select: { id_tipo_jaba: true } })) throw new BadRequestException('El tipo de jaba no está disponible.');
   }
 }

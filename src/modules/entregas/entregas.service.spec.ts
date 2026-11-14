@@ -41,12 +41,16 @@ describe('EntregasService: secuencia y saldos', () => {
     prisma = {
       $transaction: async (callback: any) => callback(prisma),
       $queryRaw: jest.fn(),
-      items_reparto: { findUnique: jest.fn(async () => item) },
+      items_reparto: {
+        findUnique: jest.fn(async () => item),
+        findMany: jest.fn(async () => []),
+      },
       entregas: {
         create: jest.fn(async ({ data }: any) => ({
           ...data,
           id_entrega: 42n,
         })),
+        findMany: jest.fn(async () => []),
       },
       guias_operativas: {
         create: jest.fn(async ({ data }: any) => ({ ...data, id_guia: 9n })),
@@ -74,7 +78,10 @@ describe('EntregasService: secuencia y saldos', () => {
           },
         ]),
       },
-      operaciones_carga: { update: jest.fn() },
+      operaciones_carga: {
+        update: jest.fn(),
+        findMany: jest.fn(async () => []),
+      },
       jabas_por_pagar: { create: jest.fn() },
       jabas_por_cobrar: { create: jest.fn() },
       logs_actividad: { create: jest.fn() },
@@ -143,5 +150,75 @@ describe('EntregasService: secuencia y saldos', () => {
   it('no cierra automáticamente al recibir el saldo completo', async () => {
     await service.create({ ...dto(), cantidad_entregada: 10, estado_entrega: 'entregado_total' }, 1);
     expect(prisma.operaciones_carga.update).not.toHaveBeenCalled();
+  });
+
+  it('filtra entregas por carga y calidad', async () => {
+    await service.findAll({ id_operacion: 7, id_calidad: 3 });
+
+    expect(prisma.entregas.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          items_reparto: {
+            detalle_carga: {
+              id_operacion: 7n,
+              detalle_carga_calidades: { some: { id_calidad: 3n } },
+            },
+          },
+        },
+      }),
+    );
+  });
+
+  it('expone una fila por operación en tránsito, aunque ya tenga entregas registradas', async () => {
+    const fechaCarga = new Date('2026-11-08');
+    prisma.operaciones_carga.findMany.mockResolvedValue([
+      {
+        id_operacion: 8n,
+        fecha_carga: fechaCarga,
+        detalle_carga: [
+          {
+            cantidad_jabas: 12,
+            items_reparto: [{ id_item_reparto: 5n }, { id_item_reparto: 6n }],
+          },
+        ],
+      },
+    ]);
+
+    await expect(
+      service.findTransitPending({ fecha_carga: '2026-11-08', id_calidad: 3 }),
+    ).resolves.toEqual([
+      {
+        id_operacion: 8,
+        fecha_carga: fechaCarga,
+        estado: 'en_transito',
+        cantidad_jabas: 12,
+        cantidad_destinos: 2,
+      },
+    ]);
+
+    expect(prisma.operaciones_carga.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          estado: 'en_transito',
+          detalle_carga: {
+            some: {
+              detalle_carga_calidades: { some: { id_calidad: 3n } },
+            },
+          },
+          fecha_carga: {
+            gte: new Date('2026-11-08'),
+            lt: new Date('2026-11-09'),
+          },
+        },
+        select: expect.objectContaining({
+          detalle_carga: {
+            select: {
+              cantidad_jabas: true,
+              items_reparto: { select: { id_item_reparto: true } },
+            },
+          },
+        }),
+      }),
+    );
   });
 });

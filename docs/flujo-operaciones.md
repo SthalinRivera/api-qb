@@ -7,8 +7,9 @@ Revisión del 8 de noviembre de 2026. Se inspeccionaron Prisma, las restriccione
 1. Crear carga y agregar productos.
 2. Si el producto tiene reparto, clasificar todas sus jabas por calidad. Las entregas directas no requieren clasificación. Asignar receptor y puesto a todas las cantidades.
 3. Confirmar la carga. Esta acción valida cantidades y destinos en el servidor y bloquea la edición de los productos.
-4. Registrar entregas totales o parciales desde la misma operación, indicando cantidades recibidas, rechazadas y quién recibe.
-5. Revisar el historial y consultar las guías de cada destino.
+4. Mientras la operación está `en_transito`, aparece una sola fila por carga en el resumen y al filtrar por `Pendiente` en Entregas, con el estado `En tránsito`. Las filas se derivan del estado real de la operación; no se guardan entregas ficticias. Desde esa fila se puede gestionar el reparto.
+5. Iniciar el reparto y registrar entregas totales o parciales desde la misma operación, indicando cantidades recibidas, rechazadas y quién recibe.
+6. Revisar el historial y consultar las guías de cada destino.
 
 El avance se obtiene de la API y de sus registros, no de una variable de navegación temporal. El estado `completado` se alcanza cuando todas las jabas asignadas fueron recibidas; un rechazo no equivale a una entrega completa.
 

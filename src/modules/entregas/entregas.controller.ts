@@ -20,6 +20,11 @@ export class EntregasController {
     return this.service.findAll(query);
   }
 
+  @Get('pendientes-transito')
+  findTransitPending(@Query() query: QueryEntregasDto) {
+    return this.service.findTransitPending(query);
+  }
+
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.service.findOne(id);

@@ -1,13 +1,17 @@
-import { Controller, Get, UseGuards, Req } from '@nestjs/common';
-import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
+import { Controller, Get, Req } from '@nestjs/common';
 import { AuthService } from './auth.service';
 
 @Controller('auth')
 export class AuthController {
     constructor(private readonly authService: AuthService) { }
 
+    @Get('check')
+    check() { return { authorized: true }; }
+
+    @Get('session')
+    getSession(@Req() req: any) { return this.authService.getProfile({ user: req.user }, true); }
+
     @Get('profile')
-    @UseGuards(SupabaseAuthGuard) 
     async getProfile(@Req() req: any) {
         return this.authService.getProfile({ user: req.user });
     }

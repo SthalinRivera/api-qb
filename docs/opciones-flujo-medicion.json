@@ -1,0 +1,21 @@
+{
+  "note": "Read-only database comparison; JSON bytes before HTTP compression, one company, no browser/OAuth measurement.",
+  "operacion": {
+    "beforeRequests": 3,
+    "afterRequests": 1,
+    "beforeBytes": 403299,
+    "afterBytes": 793,
+    "afterOriginSelectionBytes": 838
+  },
+  "checks": {
+    "destinos": true
+  },
+  "carga": {
+    "beforeRequests": 4,
+    "afterRequests": 1,
+    "beforeBytes": 33876,
+    "afterBytes": 1335
+  },
+  "reparto": null,
+  "entrega": null
+}

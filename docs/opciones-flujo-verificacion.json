@@ -1,0 +1,16 @@
+{
+  "passed": true,
+  "checks": [
+    "session minimal payload",
+    "operation creation with contextual options",
+    "cargo creation",
+    "classification and assignment; exhausted quality excluded",
+    "confirm cargo, issue guide, start delivery",
+    "partial delivery and refreshed pending balance",
+    "stale quantity rejected at save",
+    "full delivery excluded from pending options",
+    "operation completed",
+    "rollback verified: no test operation persisted"
+  ],
+  "scope": "Real database services in a rolled-back transaction; OAuth/browser not exercised"
+}

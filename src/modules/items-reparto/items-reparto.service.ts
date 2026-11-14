@@ -1,3 +1,4 @@
+import { validarReceptor } from '../opciones-flujo/reglas-opciones';
 import { operacionAbierta } from '../operaciones-carga/estados-operacion';
 import { actorActual, exigirSupervisor } from '../../common/security/request-context';
 import { cargaEditable } from '../operaciones-carga/flujo-operacion';
@@ -50,8 +51,10 @@ export class ItemsRepartoService {
     if (!operacionAbierta(op.estado)) throw new BadRequestException('La operación está cerrada.');
     return tx.detalle_carga.findUniqueOrThrow({ where: { id_detalle_carga: detalleId } });
   }
-  private async receptorValido(tx: any, cliente: number | bigint | null, puesto: number | bigint | null) {
+  private async receptorValido(tx: any, cliente: number | bigint | null, puesto: number | bigint | null, operacionId: number | bigint, seccion?: string | null) {
     if (!cliente || !puesto) throw new BadRequestException('Indica receptor y puesto.');
+    const op = await tx.operaciones_carga.findUniqueOrThrow({ where: { id_operacion: operacionId }, select: { id_ubigeo_destino: true } });
+    await validarReceptor(tx, this.prisma.empresaId, op.id_ubigeo_destino, cliente, puesto, seccion);
     if (!await tx.clientes_puestos.findFirst({ where: { id_cliente: cliente, id_puesto: puesto, estado: true, fecha_fin: null } }))
       throw new BadRequestException('El receptor no tiene una ocupación vigente en ese puesto.');
   }
@@ -61,7 +64,7 @@ export class ItemsRepartoService {
       if (carga.es_reparto) throw new BadRequestException('Asigna las calidades explícitamente.');
       const usados = await tx.items_reparto.aggregate({ where: { id_detalle_carga: dto.id_detalle_carga }, _sum: { cantidad_asignada: true } });
       if (dto.cantidad_asignada <= 0 || !Number.isInteger(dto.cantidad_asignada) || (usados._sum.cantidad_asignada || 0) + dto.cantidad_asignada > carga.cantidad_jabas) throw new BadRequestException('La cantidad supera el saldo de la línea.');
-      await this.receptorValido(tx, dto.id_cliente_receptor, dto.id_puesto);
+      await this.receptorValido(tx, dto.id_cliente_receptor, dto.id_puesto, carga.id_operacion, dto.seccion);
       return tx.items_reparto.create({ data: { ...dto, id_empresa: carga.id_empresa } });
     });
   }
@@ -170,7 +173,7 @@ export class ItemsRepartoService {
       const usados = await tx.items_reparto.aggregate({ where: { id_detalle_carga: item.id_detalle_carga, id_item_reparto: { not: item.id_item_reparto } }, _sum: { cantidad_asignada: true } });
       if (cantidad <= 0 || !Number.isInteger(cantidad) || cantidad + (usados._sum.cantidad_asignada || 0) > carga.cantidad_jabas) throw new BadRequestException('Cantidad fuera del saldo de la línea.');
       if (carga.es_reparto && cantidad !== item.items_reparto_detalle.reduce((sum, d) => sum + d.cantidad, 0)) throw new BadRequestException('Reajusta explícitamente el desglose de calidades.');
-      await this.receptorValido(tx, dto.id_cliente_receptor ?? item.id_cliente_receptor, dto.id_puesto ?? item.id_puesto);
+      await this.receptorValido(tx, dto.id_cliente_receptor ?? item.id_cliente_receptor, dto.id_puesto ?? item.id_puesto, carga.id_operacion, dto.seccion ?? item.seccion);
       return tx.items_reparto.update({ where: { id_item_reparto: id }, data: dto });
     });
   }
@@ -194,7 +197,7 @@ export class ItemsRepartoService {
       const item = await tx.items_reparto.findUniqueOrThrow({ where: { id_item_reparto: id }, include: { entregas: true, guias_operativas: true, resoluciones_reparto: true } });
       if (item.entregas.length || item.resoluciones_reparto.length || item.guias_operativas.some((g) => !['anulada','reemplazada'].includes(g.estado || ''))) throw new BadRequestException('Anula la guía antes de reajustar. Los movimientos físicos no se reescriben.');
       if (!carga.es_reparto || !dto.detalles.length) throw new BadRequestException('El reajuste requiere una carga clasificada y un desglose.');
-      await this.receptorValido(tx, dto.id_cliente_receptor, dto.id_puesto);
+      await this.receptorValido(tx, dto.id_cliente_receptor, dto.id_puesto, carga.id_operacion, dto.seccion);
       const solicitado = new Map<number, number>();
       for (const d of dto.detalles) {
         if (!Number.isInteger(d.cantidad) || d.cantidad <= 0 || (d.precio_unitario != null && (!Number.isFinite(d.precio_unitario) || d.precio_unitario < 0))) throw new BadRequestException('Cantidad o precio inválido.');
@@ -397,6 +400,7 @@ export class ItemsRepartoService {
         );
       const solicitado = new Map<number, number>();
       for (const asignacion of dto.asignaciones) {
+        await validarReceptor(tx, detalle.id_empresa, detalle.operaciones_carga.id_ubigeo_destino, asignacion.id_cliente_receptor, asignacion.id_puesto, asignacion.seccion);
         const relacion = await tx.clientes_puestos.findFirst({
           where: {
             id_empresa: detalle.id_empresa,
