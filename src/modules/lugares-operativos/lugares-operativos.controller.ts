@@ -39,6 +39,18 @@ export class LugaresOperativosController {
     return this.lugaresOperativosService.findAll(profile.id_empresa, estadoBool);
   }
 
+  @Get('catalogo/:ubigeo')
+  @ApiOperation({ summary: 'Catálogo global por distrito para asignación administrativa' })
+  catalogo(@Param('ubigeo', UbigeoPipe) ubigeo: string) {
+    return this.lugaresOperativosService.catalogo(ubigeo);
+  }
+
+  @Put(':id/asignacion')
+  @ApiOperation({ summary: 'Asignar o desactivar un lugar para la empresa autenticada (administrador)' })
+  asignar(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateStateDto) {
+    return this.lugaresOperativosService.asignar(id, dto.estado);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Obtener un lugar operativo por ID' })
   async findOne(@Param('id', ParseIntPipe) id: number, @Req() req: any) {

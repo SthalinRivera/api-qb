@@ -1,3 +1,4 @@
+import { normalizarSeccion, ocupacionIncompatible } from './ocupacion-puesto';
 import {
   Injectable,
   NotFoundException,
@@ -42,6 +43,7 @@ export class ClientesService {
     });
   }
   async createFull(dto: CreateFullClienteDto) {
+    dto = { ...dto, puestos: dto.puestos?.map(p => ({ ...p, seccion: normalizarSeccion(p.seccion) })) };
     // ✅ Validaciones previas (antes de la transacción)
     await this.ensureEmpresaExists(dto.id_empresa);
     await this.ensureUniqueClienteNombre(dto.id_empresa, dto.nombres);
@@ -80,18 +82,7 @@ export class ClientesService {
       if (dto.puestos?.length) {
         for (const p of [...dto.puestos].sort((a,b) => a.id_puesto-b.id_puesto)) {
           await tx.$queryRaw`SELECT id_puesto FROM puestos WHERE id_puesto = ${BigInt(p.id_puesto)} FOR UPDATE`;
-          const ocupado = await tx.clientes_puestos.findFirst({
-            where: {
-              id_puesto: BigInt(p.id_puesto),
-              seccion: p.seccion ?? null,
-              fecha_fin: null,
-            },
-          });
-          if (ocupado) {
-            throw new ConflictException(
-              `El puesto ${p.id_puesto} en la sección ${p.seccion} ya está ocupado por otro cliente`
-            );
-          }
+          await this.exigirPuestoLibre(tx, p.id_puesto, p.seccion ?? null);
           await tx.clientes_puestos.create({
             data: {
               id_cliente: cliente.id_cliente,
@@ -110,10 +101,11 @@ export class ClientesService {
         where: { id_cliente: cliente.id_cliente },
         include: this.getClienteInclude(),
       });
-    });
+    }).catch(error => this.handlePuestoError(error));
   }
 
   async updateFull(id: number, dto: UpdateFullClienteDto) {
+    dto = { ...dto, puestos: dto.puestos?.map(p => ({ ...p, seccion: normalizarSeccion(p.seccion) })) };
     return this.prisma.scoped.$transaction(async (tx) => {
       // 1. Verificar que el cliente existe
       const clienteExistente = await tx.clientes.findUnique({
@@ -169,11 +161,13 @@ export class ClientesService {
         const key = (p: { id_puesto: bigint | number; seccion?: string | null }) => `${p.id_puesto}:${p.seccion || ''}`;
         const nuevos = new Set(dto.puestos.map(key));
         if (nuevos.size !== dto.puestos.length) throw new ConflictException('Puestos duplicados en la solicitud.');
+        const idsBloqueados = [...new Set([...actuales.map(p => String(p.id_puesto)), ...dto.puestos.map(p => String(p.id_puesto))])].map(BigInt).sort((a,b) => a < b ? -1 : a > b ? 1 : 0);
+        for (const puestoId of idsBloqueados) await tx.$queryRaw`SELECT id_puesto FROM puestos WHERE id_puesto = ${puestoId} FOR UPDATE`;
         for (const anterior of actuales) if (!nuevos.has(key(anterior))) await tx.clientes_puestos.update({ where: { id_cliente_puesto: anterior.id_cliente_puesto }, data: { estado: false, fecha_fin: new Date() } });
         for (const puesto of [...dto.puestos].sort((a,b) => a.id_puesto-b.id_puesto)) {
           if (actuales.some((actual) => key(actual) === key(puesto))) continue;
           await tx.$queryRaw`SELECT id_puesto FROM puestos WHERE id_puesto = ${BigInt(puesto.id_puesto)} FOR UPDATE`;
-          if (await tx.clientes_puestos.findFirst({ where: { id_puesto: puesto.id_puesto, seccion: puesto.seccion || null, estado: true, fecha_fin: null } })) throw new ConflictException('El puesto y sección ya están ocupados.');
+          await this.exigirPuestoLibre(tx, puesto.id_puesto, puesto.seccion ?? null);
           await tx.clientes_puestos.create({ data: { id_cliente: id, id_puesto: puesto.id_puesto, seccion: puesto.seccion || null, id_empresa: clienteExistente.id_empresa, fecha_inicio: new Date(), estado: true } });
         }
       }
@@ -183,8 +177,20 @@ export class ClientesService {
         where: { id_cliente: BigInt(id) },
         include: this.getClienteInclude(),
       });
-    });
+    }).catch(error => this.handlePuestoError(error));
   }
+  async findDistritos() {
+    const distritos = await this.prisma.scoped.distritos.findMany({
+      where: { cliente_distrito: { some: {
+        id_empresa: this.prisma.empresaId, estado: true,
+        clientes: { id_empresa: this.prisma.empresaId },
+      } } },
+      select: { id_ubigeo: true, nombre: true },
+      orderBy: [{ nombre: 'asc' }, { id_ubigeo: 'asc' }],
+    });
+    return { distritos };
+  }
+
   async findAll(buscar?: string, query?: QueryClientesDto) {
     const where = this.buildListWhere(buscar, query?.estado, query?.tipo_relacion, query?.id_ubigeo);
     return this.prisma.scoped.clientes.findMany({
@@ -380,6 +386,7 @@ export class ClientesService {
   // ==================== GESTIÓN DE PUESTOS ====================
 
   async assignPuesto(clienteId: number, dto: AsignarPuestoDto) {
+    dto = { ...dto, seccion: normalizarSeccion(dto.seccion) };
     return this.prisma.scoped.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id_cliente FROM clientes WHERE id_cliente = ${BigInt(clienteId)} AND id_empresa = ${this.prisma.empresaId} FOR UPDATE`;
     await tx.$queryRaw`SELECT id_puesto FROM puestos WHERE id_puesto = ${BigInt(dto.id_puesto)} FOR UPDATE`;
@@ -387,22 +394,7 @@ export class ClientesService {
     await this.ensureClienteExists(clienteId);
     await this.ensurePuestoExists(dto.id_puesto);
 
-    const existingGlobal = await tx.clientes_puestos.findFirst({
-      where: {
-        id_puesto: BigInt(dto.id_puesto),
-        seccion: dto.seccion ?? null,
-        fecha_fin: null,
-      },
-    });
-    if (existingGlobal) {
-      const ocupante =
-        existingGlobal.id_cliente === BigInt(clienteId)
-          ? 'este cliente'
-          : `el cliente ${existingGlobal.id_cliente}`;
-      throw new ConflictException(
-        `El puesto ${dto.id_puesto} en la sección ${dto.seccion} ya está asignado a ${ocupante}`,
-      );
-    }
+    await this.exigirPuestoLibre(tx, dto.id_puesto, dto.seccion ?? null);
 
     const cliente = await tx.clientes.findUnique({
       where: { id_cliente: BigInt(clienteId) },
@@ -423,7 +415,7 @@ export class ClientesService {
       },
       include: { puestos: true },
     });
-    });
+    }).catch(error => this.handlePuestoError(error));
   }
 
   async removePuesto(clienteId: number, puestoId: number, ocupacionId?: number) {
@@ -492,6 +484,21 @@ export class ClientesService {
   }
 
   // ==================== MÉTODOS PRIVADOS AUXILIARES ====================
+
+  private async exigirPuestoLibre(tx: Prisma.TransactionClient, id: number, seccion: string | null) {
+    if (await tx.clientes_puestos.findFirst({ where: ocupacionIncompatible(this.prisma.empresaId, id, seccion), select: { id_cliente_puesto: true } }))
+      throw new ConflictException(seccion === null
+        ? 'No se puede asignar el puesto completo: ya tiene una ocupación o sección vigente.'
+        : 'No se puede asignar la sección ' + seccion + ': la sección o el puesto completo ya están ocupados.');
+  }
+  private handlePuestoError(error: unknown): never {
+    // El trigger existente usa RAISE EXCEPTION (P0001). No exponer SQL ni detalles internos.
+    const e = error as { code?: string; message?: string; meta?: unknown };
+    const detail = (e.message || '') + JSON.stringify(e.meta || {});
+    if (/El puesto o la sección ya tiene una asignación vigente/.test(detail) || (e.code === 'P2002' && /uq_cliente_puesto_activo|id_puesto/.test(detail)))
+      throw new ConflictException('El puesto completo o la sección ya tienen una asignación vigente para esta empresa.');
+    throw error;
+  }
 
   private async ensureEmpresaExists(empresaId: number) {
     const empresa = await this.prisma.scoped.empresas.findUnique({

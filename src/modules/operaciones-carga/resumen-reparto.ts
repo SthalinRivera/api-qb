@@ -26,7 +26,7 @@ export function resumenReparto(cargas: any[]) {
     const items = carga.items_reparto || [];
     const clasificado = calidades.reduce((s: number, c: any) => s + c.cantidad, 0);
     const asignado = items.reduce((s: number, i: any) => s + i.cantidad_asignada, 0);
-    const requiereCalidad = !!carga.es_reparto || calidades.length > 0;
+    const requiereCalidad = true;
     const saldosCalidad = calidades.map((c: any) => {
       const asignadoCalidad = items.flatMap((i: any) => i.items_reparto_detalle || [])
         .filter((d: any) => String(d.id_detalle_carga_calidad) === String(c.id_detalle_carga_calidad))

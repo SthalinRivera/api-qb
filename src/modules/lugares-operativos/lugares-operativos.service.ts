@@ -2,9 +2,34 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { PrismaService } from '../../config/prisma/prisma.service';
 import { CreateLugarOperativoDto } from './dto/create-lugar-operativo.dto';
 import { UpdateLugarOperativoDto } from './dto/update-lugar-operativo.dto';
+import { actorActual } from '../../common/security/request-context';
 @Injectable()
 export class LugaresOperativosService {
   constructor(private readonly prisma: PrismaService) {}
+  private exigirAdministrador() {
+    if (!actorActual().administrador) throw new ForbiddenException('Se requiere un administrador.');
+  }
+  async catalogo(id_ubigeo: string) {
+    this.exigirAdministrador();
+    // Catálogo global: incluir únicamente el vínculo de la empresa autenticada.
+    return (await this.prisma.lugares_operativos.findMany({
+      where: { id_ubigeo, estado: true }, include: this.include(), orderBy: { nombre: 'asc' },
+    })).map(lugar => this.present(lugar));
+  }
+  async asignar(id: number, estado: boolean) {
+    this.exigirAdministrador();
+    const id_empresa = this.prisma.empresaId;
+    // Permite vincular un lugar global todavía no asociado, sin editar el catálogo.
+    return this.prisma.$transaction(async tx => {
+      const lugar = await tx.lugares_operativos.findUnique({ where: { id_lugar: BigInt(id) } });
+      if (!lugar || (estado && !lugar.estado)) throw new NotFoundException('Lugar operativo no disponible');
+      await tx.empresa_lugares.upsert({
+        where: { id_empresa_id_lugar: { id_empresa, id_lugar: BigInt(id) } },
+        create: { id_empresa, id_lugar: BigInt(id), estado }, update: { estado },
+      });
+      return { ...lugar, estado_catalogo: lugar.estado, estado };
+    });
+  }
   private empresa(id?: number) {
     if (id !== undefined && BigInt(id) !== this.prisma.empresaId) throw new ForbiddenException('Empresa no autorizada');
   }

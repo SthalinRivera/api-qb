@@ -1,7 +1,7 @@
 import { resumenReparto } from './resumen-reparto';
 import { validarTransicion, ESTADOS_OPERACION } from './estados-operacion';
-const item = (cantidad = 10): any => ({ id_item_reparto: 1, id_cliente_receptor: 2, id_puesto: 1, cantidad_asignada: cantidad, entregas: [], items_reparto_detalle: [] });
-const linea = (cantidad = 10): any => ({ id_detalle_carga: 1, cantidad_jabas: cantidad, es_reparto: false, items_reparto: [item(cantidad)], detalle_carga_calidades: [] });
+const item = (cantidad = 10): any => ({ id_item_reparto: 1, id_cliente_receptor: 2, id_puesto: 1, cantidad_asignada: cantidad, entregas: [], items_reparto_detalle: [{ id_detalle_carga_calidad: 1, cantidad }] });
+const linea = (cantidad = 10): any => ({ id_detalle_carga: 1, cantidad_jabas: cantidad, es_reparto: false, items_reparto: [item(cantidad)], detalle_carga_calidades: [{ id_detalle_carga_calidad: 1, cantidad }] });
 describe('Conciliación por línea y destino', () => {
   it('no compensa faltantes de una línea con excesos de otra', () => {
     const a = linea(), b = linea(); a.items_reparto = [item(12)]; b.items_reparto = [item(8)];
@@ -23,7 +23,7 @@ describe('Conciliación por línea y destino', () => {
     expect(resumenReparto([a]).conciliada).toBe(true); expect(resumenReparto([a]).progreso).toBe(100);
   });
   it('una sobreentrega impide cerrar', () => { const a = linea(); a.items_reparto[0].entregas = [{ cantidad_entregada: 11 }]; expect(resumenReparto([a]).conciliada).toBe(false); });
-  it('la carga sin clasificar informa su faltante', () => { const a = linea(); a.es_reparto = true; expect(resumenReparto([a]).jabasSinClasificar).toBe(10); });
+  it('la carga sin clasificar informa su faltante', () => { const a = linea(); a.es_reparto = true; a.detalle_carga_calidades = []; expect(resumenReparto([a]).jabasSinClasificar).toBe(10); });
 });
 describe('Estados sin cancelación', () => {
   it('admite solo el avance inmediato', () => { for (let i=0; i<4; i++) expect(() => validarTransicion(ESTADOS_OPERACION[i],ESTADOS_OPERACION[i+1])).not.toThrow(); });

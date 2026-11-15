@@ -1,3 +1,4 @@
+import { ReordenarCargaDto } from '../detalle-carga/dto/reordenar-carga.dto';
 import {
   Controller,
   Get,
@@ -93,6 +94,11 @@ export class OperacionesCargaController {
   @Post(':id/generar-guias')
   async generarGuias(@Param('id', ParseIntPipe) id: number) {
     return this.service.generarGuias(id);
+  }
+
+  @Put(':id/detalles/orden')
+  reordenar(@Param('id', ParseIntPipe) id: number, @Body() dto: ReordenarCargaDto) {
+    return this.detalleService.reordenar(id, dto.ids);
   }
 
   @Post(':id/detalles')

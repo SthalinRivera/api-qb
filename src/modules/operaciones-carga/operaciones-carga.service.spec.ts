@@ -18,21 +18,26 @@ describe('Confirmar carga', () => {
     id_detalle_carga: 1,
     cantidad_jabas: 10,
     es_reparto: false,
-    detalle_carga_calidades: [],
+    detalle_carga_calidades: [{ id_detalle_carga_calidad: 1, cantidad: 10 }],
     items_reparto: [
       { cantidad_asignada: 10, id_cliente_receptor: 2, id_puesto: 3, entregas: [] },
     ],
   });
-  it('confirma entrega directa sin calidades', async () => {
+  it('confirma entrega directa con calidades', async () => {
     const { service, prisma } = setup('en_curso', [directa()]);
     await expect(service.finalizar(1)).resolves.toEqual({
       estado: 'en_transito',
     });
     expect(prisma.operaciones_carga.update).toHaveBeenCalledTimes(1);
   });
+  it('rechaza directa sin calidades aunque ya tenga destino', async () => {
+    const { service, prisma } = setup('en_curso', [{ ...directa(), detalle_carga_calidades: [] }]);
+    await expect(service.finalizar(1)).rejects.toThrow('Completa las calidades');
+    expect(prisma.operaciones_carga.update).not.toHaveBeenCalled();
+  });
   it('rechaza reparto sin clasificar aunque tenga destinos', async () => {
     const { service, prisma } = setup('en_curso', [
-      { ...directa(), es_reparto: true },
+      { ...directa(), es_reparto: true, detalle_carga_calidades: [] },
     ]);
     await expect(service.finalizar(1)).rejects.toThrow('Completa las calidades');
     expect(prisma.operaciones_carga.update).not.toHaveBeenCalled();
@@ -68,6 +73,7 @@ describe('Confirmar carga', () => {
   it('permite iniciar reparto si un destino completo conserva una guía histórica sin cobertura', async () => {
     const item = (cantidad_asignada: number, entregas: unknown[], guias_operativas: unknown[]) => ({
       cantidad_asignada,
+      items_reparto_detalle: [{ id_detalle_carga_calidad: 1, cantidad: cantidad_asignada }],
       id_cliente_receptor: 2,
       id_puesto: 3,
       entregas,
@@ -78,7 +84,7 @@ describe('Confirmar carga', () => {
       id_detalle_carga: 1,
       cantidad_jabas: 1013,
       es_reparto: false,
-      detalle_carga_calidades: [],
+      detalle_carga_calidades: [{ id_detalle_carga_calidad: 1, cantidad: 1013 }],
       items_reparto: [
         item(75, [], [{ estado: 'emitida', cobertura: { cantidad: 75 } }]),
         item(138, [{ cantidad_entregada: 138, estado_entrega: 'entregado_total' }], [{ estado: 'emitida' }]),
@@ -100,6 +106,7 @@ describe('Confirmar carga', () => {
       ...directa(),
       items_reparto: [{
         cantidad_asignada: 10,
+        items_reparto_detalle: [{ id_detalle_carga_calidad: 1, cantidad: 10 }],
         id_cliente_receptor: 2,
         id_puesto: 3,
         entregas: [],

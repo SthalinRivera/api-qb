@@ -21,10 +21,10 @@ const detalle = () => ({
 describe('Secuencia de operaciones', () => {
   it('no permite avanzar una carga vacía', () =>
     expect(resumenFlujo([]).listaParaEntregar).toBe(false));
-  it('omite calidad para una entrega directa', () =>
+  it('exige calidad para una entrega directa', () =>
     expect(resumenFlujo([detalle()])).toMatchObject({
-      requiereCalidad: false,
-      listaParaEntregar: true,
+      requiereCalidad: true,
+      listaParaEntregar: false,
       entregasCompletas: false,
     }));
   it('exige clasificar todo el reparto y no acepta excesos', () => {
@@ -44,6 +44,7 @@ describe('Secuencia de operaciones', () => {
   });
   it('no confunde entrega pendiente ni rechazos con entrega completa', () => {
     const d = detalle();
+    d.detalle_carga_calidades = [{ cantidad: 10 }];
     d.items_reparto[0].entregas = [
       {
         cantidad_entregada: 10,

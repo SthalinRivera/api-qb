@@ -54,6 +54,9 @@ export class ClientesController {
     return this.clientesService.findAllClientesPuestos();
   }
 
+  @Get('distritos')
+  distritos() { return this.clientesService.findDistritos(); }
+
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.clientesService.findOne(id);

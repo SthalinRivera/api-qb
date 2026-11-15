@@ -34,7 +34,6 @@ export function resumenFlujo(detalles: DetalleFlujo[]) {
       0,
     );
     if (
-      (detalle.es_reparto || totalCalidad > 0) &&
       totalCalidad !== detalle.cantidad_jabas
     ) {
       calidadPendiente++;
@@ -70,9 +69,7 @@ export function resumenFlujo(detalles: DetalleFlujo[]) {
     destinoPendiente,
     totalItems,
     entregados,
-    requiereCalidad: detalles.some(
-      (d) => d.es_reparto || d.detalle_carga_calidades.length > 0,
-    ),
+    requiereCalidad: detalles.length > 0,
     listaParaEntregar: pendientes.length === 0,
     entregasCompletas:
       pendientes.length === 0 && totalItems > 0 && entregados === totalItems,

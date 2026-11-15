@@ -121,7 +121,7 @@ export class OpcionesFlujoController {
     const db = this.prisma.scoped,
       empresa = this.prisma.empresaId,
       destino = op.id_ubigeo_destino;
-    const [clientes, puestos, secciones] = await Promise.all([
+    const [clientes, puestos, secciones, destinos] = await Promise.all([
       db.clientes.findMany({
         where: {
           ...clienteValido(empresa, destino, 'receptor'),
@@ -171,8 +171,17 @@ export class OpcionesFlujoController {
             distinct: ['seccion'],
           })
         : [],
+      db.clientes_puestos.findMany({
+        where: { id_empresa: empresa, estado: true, fecha_fin: null,
+          clientes: clienteValido(empresa, destino, 'receptor'),
+          puestos: { estado: true, lugares_operativos: { id_ubigeo: destino, estado: true, empresa_lugares: { some: { id_empresa: empresa, estado: true } } } },
+        },
+        select: { id_cliente: true, id_puesto: true, seccion: true, puestos: { select: { id_puesto: true, codigo_puesto: true, lugares_operativos: { select: { nombre: true } } } } },
+        orderBy: [{ id_cliente: 'asc' }, { id_puesto: 'asc' }, { seccion: 'asc' }],
+      }),
     ]);
     return {
+      destinos,
       clientes,
       puestos,
       secciones: secciones.map((s) => ({
@@ -201,17 +210,15 @@ export class OpcionesFlujoController {
           select: { id_fruta: true, nombre: true },
           orderBy: { nombre: 'asc' },
         }),
-        q.fruta
-          ? db.variedades.findMany({
+        db.variedades.findMany({
               where: {
                 id_fruta: q.fruta,
                 estado: true,
                 frutas: { estado: true },
               },
-              select: { id_variedad: true, nombre: true },
+              select: { id_variedad: true, id_fruta: true, nombre: true },
               orderBy: { nombre: 'asc' },
-            })
-          : [],
+            }),
         db.tipos_jaba.findMany({
           where: { estado: true },
           select: { id_tipo_jaba: true, nombre: true },
@@ -225,6 +232,7 @@ export class OpcionesFlujoController {
       variedades,
       tiposJaba,
       receptores: destino.clientes,
+      destinos: destino.destinos,
       puestos: destino.puestos,
       secciones: destino.secciones,
     };
@@ -318,7 +326,7 @@ export class OpcionesFlujoController {
       this.calidades(q),
       this.prisma.scoped.$queryRaw<{ completa: boolean }[]>(Prisma.sql`
       SELECT EXISTS (SELECT 1 FROM detalle_carga WHERE id_empresa = ${this.prisma.empresaId} AND id_operacion = ${op.id_operacion})
-        AND NOT EXISTS (SELECT 1 FROM detalle_carga d WHERE d.id_empresa = ${this.prisma.empresaId} AND d.id_operacion = ${op.id_operacion} AND d.es_reparto = true
+        AND NOT EXISTS (SELECT 1 FROM detalle_carga d WHERE d.id_empresa = ${this.prisma.empresaId} AND d.id_operacion = ${op.id_operacion}
           AND d.cantidad_jabas <> COALESCE((SELECT SUM(cantidad) FROM detalle_carga_calidades c WHERE c.id_empresa = ${this.prisma.empresaId} AND c.id_detalle_carga = d.id_detalle_carga),0)) AS completa
     `),
     ]);
@@ -367,8 +375,7 @@ export class OpcionesFlujoController {
     return operaciones
       .filter(op => q.proceso !== 'entrega' || (
         op.detalle_carga.length > 0 && op.detalle_carga.every(d =>
-          d.cantidad_jabas > 0 && ((!d.es_reparto && !d.detalle_carga_calidades.length) ||
-            d.detalle_carga_calidades.reduce((sum, c) => sum + c.cantidad, 0) === d.cantidad_jabas))
+          d.cantidad_jabas > 0 && d.detalle_carga_calidades.reduce((sum, c) => sum + c.cantidad, 0) === d.cantidad_jabas)
       ))
       .map(({ detalle_carga, ...op }) => op);
   }

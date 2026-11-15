@@ -40,6 +40,33 @@ export class DetalleCargaService {
     return detalle;
   }
 
+  private async destinoDirectoEditable(tx: Prisma.TransactionClient, detalleId: number | bigint) {
+    const items = await tx.items_reparto.findMany({ where: { id_detalle_carga: detalleId }, include: { entregas: true, guias_operativas: true, resoluciones_reparto: true } });
+    if (items.length !== 1) throw new BadRequestException('La entrega directa debe tener un único destino.');
+    const item = items[0];
+    if (item.entregas.length || item.resoluciones_reparto.length || item.guias_operativas.some(g => !['anulada', 'reemplazada'].includes(g.estado || '')))
+      throw new BadRequestException('El destino tiene entregas o una guía vigente. No se pueden modificar sus calidades.');
+    return item;
+  }
+
+  async reordenar(operacionId: number, ids: number[]) {
+    return this.prisma.scoped.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${BigInt(operacionId)} AND id_empresa = ${this.prisma.empresaId} FOR UPDATE`;
+      const op = await tx.operaciones_carga.findUnique({ where: { id_operacion: operacionId } });
+      if (!op) throw new NotFoundException('Operación no encontrada.');
+      if (!cargaEditable(op.estado)) throw new BadRequestException('Solo se puede reordenar una carga en preparación.');
+      const detalles = await tx.detalle_carga.findMany({ where: { id_operacion: operacionId }, select: { id_detalle_carga: true, orden_carga: true } });
+      if (!ids.length || new Set(ids).size !== ids.length || ids.length !== detalles.length || detalles.some(d => !ids.some(id => BigInt(id) === d.id_detalle_carga)))
+        throw new BadRequestException('Envía todos los productos de esta operación, sin duplicados.');
+      // Reservar posiciones temporales positivas para respetar la unicidad del orden.
+      const offset = Math.max(...detalles.map(d => d.orden_carga), ids.length);
+      if (offset + ids.length > 2147483647) throw new BadRequestException('El orden excede el límite permitido.');
+      for (let i = 0; i < ids.length; i++) await tx.detalle_carga.update({ where: { id_detalle_carga: ids[i] }, data: { orden_carga: offset + i + 1 } });
+      for (let i = 0; i < ids.length; i++) await tx.detalle_carga.update({ where: { id_detalle_carga: ids[i] }, data: { orden_carga: i + 1 } });
+      return { ids };
+    });
+  }
+
   async create(operacionId: number, dto: CreateDetalleCargaForOperacionDto) {
     const operacion = await this.prisma.scoped.operaciones_carga.findUnique({
       where: { id_operacion: operacionId },
@@ -407,10 +434,7 @@ export class DetalleCargaService {
         );
       }
 
-      if (!detalle.es_reparto)
-        throw new BadRequestException(
-          'La entrega directa no requiere clasificación por calidad.',
-        );
+      const directo = !detalle.es_reparto ? await this.destinoDirectoEditable(tx, detalleId) : null;
       const total = detalle.detalle_carga_calidades.reduce(
         (sum, c) => sum + c.cantidad,
         0,
@@ -458,6 +482,11 @@ export class DetalleCargaService {
         include: { calidades: true },
       });
 
+      if (directo) await tx.items_reparto_detalle.create({ data: {
+        id_empresa: detalle.id_empresa, id_item_reparto: directo.id_item_reparto,
+        id_detalle_carga_calidad: nuevaCalidad.id_detalle_carga_calidad,
+        cantidad: nuevaCalidad.cantidad, precio_unitario: nuevaCalidad.precio_unitario,
+      } });
       return nuevaCalidad;
     });
   }
@@ -476,9 +505,10 @@ export class DetalleCargaService {
       );
       if (!await tx.calidades.findFirst({ where: { id_calidad: dto.id_calidad ?? calidad.id_calidad, estado: true }, select: { id_calidad: true } })) throw new BadRequestException('La calidad ya no está disponible.');
       const asignaciones = await tx.items_reparto_detalle.findMany({ where: { id_detalle_carga_calidad: calidadId }, include: { items_reparto: { include: { entregas: true, guias_operativas: true, resoluciones_reparto: true } } } });
+      const directo = !detalle.es_reparto ? await this.destinoDirectoEditable(tx, detalle.id_detalle_carga) : null;
       const asignado = asignaciones.reduce((sum, a) => sum + a.cantidad, 0);
-      if (dto.cantidad !== undefined && dto.cantidad < asignado) throw new BadRequestException('Reajusta primero las asignaciones: la calidad no puede quedar por debajo de lo asignado.');
-      if (dto.id_calidad !== undefined && BigInt(dto.id_calidad) !== calidad.id_calidad && asignado > 0) throw new BadRequestException('La calidad ya está asignada. Reajusta el desglose antes de cambiar su identidad.');
+      if (!directo && dto.cantidad !== undefined && dto.cantidad < asignado) throw new BadRequestException('Reajusta primero las asignaciones: la calidad no puede quedar por debajo de lo asignado.');
+      if (!directo && dto.id_calidad !== undefined && BigInt(dto.id_calidad) !== calidad.id_calidad && asignado > 0) throw new BadRequestException('La calidad ya está asignada. Reajusta el desglose antes de cambiar su identidad.');
       if (asignaciones.some((a) => a.items_reparto.entregas.length || a.items_reparto.resoluciones_reparto.length || a.items_reparto.guias_operativas.some((g) => !['anulada','reemplazada'].includes(g.estado || '')))) throw new BadRequestException('La calidad está documentada o entregada. Anula la guía antes de corregir.');
       const otras = detalle.detalle_carga_calidades
         .filter(
@@ -500,11 +530,16 @@ export class DetalleCargaService {
         (!Number.isFinite(dto.precio_unitario) || dto.precio_unitario < 0)
       )
         throw new BadRequestException('El precio no es válido.');
-      return tx.detalle_carga_calidades.update({
+      const actualizada = await tx.detalle_carga_calidades.update({
         where: { id_detalle_carga_calidad: calidadId },
         data: { id_calidad: dto.id_calidad, cantidad: dto.cantidad, precio_unitario: dto.precio_unitario },
         include: { calidades: true },
       });
+      if (directo) {
+        await tx.items_reparto_detalle.deleteMany({ where: { id_detalle_carga_calidad: calidadId } });
+        await tx.items_reparto_detalle.create({ data: { id_empresa: detalle.id_empresa, id_item_reparto: directo.id_item_reparto, id_detalle_carga_calidad: actualizada.id_detalle_carga_calidad, cantidad: actualizada.cantidad, precio_unitario: actualizada.precio_unitario } });
+      }
+      return actualizada;
     });
   }
 
@@ -514,7 +549,11 @@ export class DetalleCargaService {
         where: { id_detalle_carga_calidad: calidadId },
       });
       if (!calidad) throw new NotFoundException('Calidad no encontrada.');
-      await this.editableDetalle(tx, Number(calidad.id_detalle_carga));
+      const detalle = await this.editableDetalle(tx, Number(calidad.id_detalle_carga));
+      if (!detalle.es_reparto) {
+        await this.destinoDirectoEditable(tx, detalle.id_detalle_carga);
+        await tx.items_reparto_detalle.deleteMany({ where: { id_detalle_carga_calidad: calidadId } });
+      }
       if (
         await tx.items_reparto_detalle.count({
           where: { id_detalle_carga_calidad: calidadId },

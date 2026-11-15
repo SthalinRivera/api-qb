@@ -43,10 +43,10 @@ describe('Opciones del flujo por contexto', () => {
     });
     db.operaciones_carga.findMany.mockResolvedValue([
       carga(1, [4, 6]), carga(2, [4]), carga(3, [11]), carga(4, [], false),
-      carga(5, [3], false), { ...carga(6, []), detalle_carga: [] }, carga(7, [], false, 0),
+      carga(5, [3], false), { ...carga(6, []), detalle_carga: [] }, carga(7, [], false, 0), carga(8, [10], false),
     ]);
     const result = await controller.operaciones({ proceso: 'entrega', buscar: '60' });
-    expect(result.map(op => op.id_operacion)).toEqual([1, 4]);
+    expect(result.map(op => op.id_operacion)).toEqual([1, 8]);
     expect(result[0]).not.toHaveProperty('detalle_carga');
     expect(db.operaciones_carga.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({
@@ -89,7 +89,7 @@ describe('Opciones del flujo por contexto', () => {
     expect(db.variedades.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id_fruta: 11, estado: true, frutas: { estado: true } },
-        select: { id_variedad: true, nombre: true },
+        select: { id_variedad: true, id_fruta: true, nombre: true },
       }),
     );
     expect(

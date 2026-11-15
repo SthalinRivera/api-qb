@@ -1,3 +1,4 @@
+import { AsignarPuestoDto } from './asignar-puesto.dto';
 import { IsIn, Matches } from 'class-validator';
 // src/modules/clientes/dto/create-full-cliente.dto.ts
 import { IsString, IsNotEmpty, IsOptional, IsNumber, IsArray, ValidateNested, IsBoolean } from 'class-validator';
@@ -10,13 +11,7 @@ class UbicacionAsignacionDto {
     tipo_relacion!: string;
 }
 
-class PuestoAsignacionDto {
-    @IsNumber()
-    id_puesto!: number;
-
-    @IsString()
-    seccion!: string;
-}
+class PuestoAsignacionDto extends AsignarPuestoDto {}
 
 export class CreateFullClienteDto {
     @IsString()

@@ -240,6 +240,16 @@ export class OperacionesCargaService {
   }
 
   private async validateRelations(dto: any, db: Prisma.TransactionClient) {
+    for (const campo of ['id_ubigeo_origen', 'id_ubigeo_destino'] as const) {
+      if (typeof dto[campo] !== 'string' || !/^\d{6}$/.test(dto[campo]))
+        throw new BadRequestException(`${campo} es obligatorio y debe contener seis dígitos.`);
+    }
+    if (dto.id_ubigeo_origen === dto.id_ubigeo_destino)
+      throw new BadRequestException('El distrito de origen y el distrito de destino deben ser diferentes.');
+    for (const campo of ['id_ubigeo_origen', 'id_ubigeo_destino'] as const) {
+      if (!await db.distritos.findUnique({ where: { id_ubigeo: dto[campo] }, select: { id_ubigeo: true } }))
+        throw new BadRequestException(`El distrito indicado en ${campo} no existe.`);
+    }
     const empresa = this.prisma.empresaId;
     if (!await db.clientes.findFirst({ where: clienteValido(empresa, dto.id_ubigeo_origen, 'emisor'), select: { id_cliente: true } })) throw new BadRequestException('El origen no tiene emisores activos de esta empresa.');
     if (!(await destinosDisponibles(db, empresa, dto.id_ubigeo_destino)).length) throw new BadRequestException('El destino no tiene receptores y puestos activos de esta empresa.');

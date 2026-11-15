@@ -1,9 +1,9 @@
 import { GuiasOperativasService } from './guias-operativas.service';
 describe('Emisión documental', () => {
   const setup = () => {
-    const item: any = { id_item_reparto: 1n, id_detalle_carga: 2n, id_cliente_receptor: 3n, id_puesto: 4n, cantidad_asignada: 10, guias_operativas: [], entregas: [], items_reparto_detalle: [], detalle_carga: { es_reparto: false, frutas: { nombre: 'Lima' } } };
+    const item: any = { id_item_reparto: 1n, id_detalle_carga: 2n, id_cliente_receptor: 3n, id_puesto: 4n, cantidad_asignada: 10, guias_operativas: [], entregas: [], items_reparto_detalle: [{ id_detalle_carga_calidad: 1, cantidad: 10, detalle_carga_calidades: { calidades: { nombre: "Primera" } } }], detalle_carga: { es_reparto: false, frutas: { nombre: 'Lima' } } };
     const prisma: any = { empresaId: 7n, $queryRaw: jest.fn(), operaciones_carga: { findUnique: jest.fn(async () => ({ id_operacion: 5n, id_empresa: 7n, estado: 'en_transito' })), update: jest.fn() },
-      detalle_carga: { findMany: jest.fn(async () => [{ cantidad_jabas: 10, items_reparto: [item], detalle_carga_calidades: [] }]) },
+      detalle_carga: { findMany: jest.fn(async () => [{ cantidad_jabas: 10, items_reparto: [item], detalle_carga_calidades: [{ id_detalle_carga_calidad: 1, cantidad: 10 }] }]) },
       items_reparto: { findMany: jest.fn(async () => [item]) },
       guias_operativas: { create: jest.fn(async ({data}) => { const guia = { ...data, id_guia: 6n }; item.guias_operativas.push(guia); return guia; }) },
     };
@@ -28,6 +28,7 @@ describe('Emisión documental', () => {
     const destinoEntregado = {
       ...item,
       cantidad_asignada: 138,
+      items_reparto_detalle: [{ id_detalle_carga_calidad: 1, cantidad: 138, detalle_carga_calidades: { calidades: { nombre: "Primera" } } }],
       entregas: [{ cantidad_entregada: 138, estado_entrega: 'entregado_total' }],
       guias_operativas: [guiaHistorica],
     };
@@ -35,13 +36,14 @@ describe('Emisión documental', () => {
       ...item,
       id_item_reparto: 2n,
       cantidad_asignada: 75,
+      items_reparto_detalle: [{ id_detalle_carga_calidad: 1, cantidad: 75, detalle_carga_calidades: { calidades: { nombre: "Primera" } } }],
       entregas: [],
       guias_operativas: [],
     };
     prisma.detalle_carga.findMany.mockResolvedValue([{
       cantidad_jabas: 213,
       es_reparto: false,
-      detalle_carga_calidades: [],
+      detalle_carga_calidades: [{ id_detalle_carga_calidad: 1, cantidad: 213 }],
       items_reparto: [destinoEntregado, destinoPendiente],
     }]);
     prisma.items_reparto.findMany.mockResolvedValue([destinoEntregado, destinoPendiente]);
