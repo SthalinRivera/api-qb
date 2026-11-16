@@ -382,7 +382,7 @@ export class OpcionesFlujoController {
   @Get('entrega')
   async entrega(@Query() q: OpcionesFlujoQuery) {
     const op = await this.operacion(q.operacion);
-    if (op.estado !== 'repartiendo') return { items: [] };
+    if (!['en_transito', 'repartiendo'].includes(op.estado || '')) return { items: [] };
     const items = await this.prisma.scoped.$queryRaw<any[]>(Prisma.sql`
       SELECT i.id_item_reparto, i.id_detalle_carga, i.cantidad_asignada,
         (i.cantidad_asignada - COALESCE(e.recibidas,0) - COALESCE(r.resueltas,0))::int AS saldo_pendiente,

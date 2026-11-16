@@ -62,8 +62,14 @@ export class GuiasOperativasService {
           fecha_emision: new Date(), id_repartidor: op.id_repartidor_asignado, estado: 'emitida', cobertura,
         } }));
       }
+      if (op.estado === 'en_transito' && guias.some(guia => guia.cobertura)) {
+        await tx.operaciones_carga.update({
+          where: { id_operacion: op.id_operacion },
+          data: { estado: 'repartiendo' },
+        });
+      }
       return guias;
-    });
+    }, { timeout: 30_000 });
   }
 
   async findAll(query: QueryGuiasOperativasDto) {

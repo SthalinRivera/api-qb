@@ -1,4 +1,5 @@
 import { validarEntrega } from './validar-entrega';
+import { validarInicioReparto } from '../operaciones-carga/validar-inicio-reparto';
 
 import {
   Injectable,
@@ -87,7 +88,7 @@ export class EntregasService {
         throw new NotFoundException('Destino de entrega no encontrado.');
       const detalle = item.detalle_carga;
       const operacion = detalle.operaciones_carga;
-      if (operacion.estado !== 'repartiendo') throw new BadRequestException('Inicia el reparto antes de registrar una entrega.');
+      if (!['en_transito', 'repartiendo'].includes(operacion.estado || '')) throw new BadRequestException('Inicia el reparto antes de registrar una entrega.');
       const recibidas = item.entregas
         .filter((e) => e.estado_entrega !== 'pendiente')
         .reduce((sum, e) => sum + e.cantidad_entregada, 0);
@@ -146,6 +147,16 @@ export class EntregasService {
       const recibidoGuia = item.entregas.filter((e) => e.id_guia === guia.id_guia && e.estado_entrega !== 'pendiente').reduce((sum, e) => sum + e.cantidad_entregada, 0);
       if (createDto.cantidad_entregada + (createDto.cantidad_rechazada || 0) > cobertura.cantidad - recibidoGuia)
         throw new BadRequestException('La entrega excede la cobertura pendiente de la guía.');
+      const iniciarReparto = operacion.estado === 'en_transito' && createDto.estado_entrega !== 'pendiente';
+      if (iniciarReparto) {
+        const detalles = await tx.detalle_carga.findMany({
+          where: { id_operacion: operacion.id_operacion },
+          include: { detalle_carga_calidades: true, items_reparto: { include: {
+            items_reparto_detalle: true, entregas: true, guias_operativas: true, resoluciones_reparto: true,
+          } } },
+        });
+        validarInicioReparto(detalles);
+      }
       const entrega = await tx.entregas.create({
         data: {
           id_empresa: item.id_empresa,
@@ -161,6 +172,9 @@ export class EntregasService {
           nombre_recibe: createDto.nombre_recibe?.trim() || null,
           observaciones: createDto.observaciones,
         },
+      });
+      if (iniciarReparto) await tx.operaciones_carga.update({
+        where: { id_operacion: operacion.id_operacion }, data: { estado: 'repartiendo' },
       });
       // La deuda corresponde a lo recibido en esta entrega, no al total de la carga.
       if (detalle.requiere_retorno_jabas && createDto.cantidad_entregada > 0) {

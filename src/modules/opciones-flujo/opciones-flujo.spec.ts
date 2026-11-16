@@ -129,13 +129,19 @@ describe('Opciones del flujo por contexto', () => {
     );
     expect(db.$queryRaw).not.toHaveBeenCalled();
   });
-  it('no ofrece entregas antes de iniciar reparto', async () => {
+  it.each(['pendiente', 'en_curso', 'completado'])('no ofrece entregas para %s', async estado => {
     const { db, controller } = setup();
     db.operaciones_carga.findUnique.mockResolvedValue({
-      estado: 'en_transito',
+      estado,
     });
     expect(await controller.entrega({ operacion: 3 })).toEqual({ items: [] });
     expect(db.$queryRaw).not.toHaveBeenCalled();
+  });
+  it('ofrece recepciones en tránsito para iniciar automáticamente el reparto', async () => {
+    const { db, controller } = setup();
+    db.operaciones_carga.findUnique.mockResolvedValue({ estado: 'en_transito' });
+    await controller.entrega({ operacion: 3, item: 5 });
+    expect(db.$queryRaw).toHaveBeenCalled();
   });
   it('calcula saldo en SQL por empresa y operación sin descontar rechazos como recibidos', async () => {
     const { db, controller } = setup();

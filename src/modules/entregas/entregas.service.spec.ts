@@ -105,11 +105,57 @@ describe('EntregasService: secuencia y saldos', () => {
     expect(prisma.guias_operativas.create).not.toHaveBeenCalled();
   });
   it('bloquea entregas fuera de reparto', async () => {
-    for (const estado of ['en_curso', 'pendiente', 'en_transito', 'completado']) {
+    for (const estado of ['en_curso', 'pendiente', 'completado']) {
       item.detalle_carga.operaciones_carga.estado = estado;
       await expect(service.create(dto(), 1)).rejects.toThrow('Inicia el reparto');
     }
     expect(prisma.entregas.create).not.toHaveBeenCalled();
+  });
+  const prepararTransito = () => {
+    item.detalle_carga.operaciones_carga.estado = 'en_transito';
+    const detalles = [{
+      cantidad_jabas: 10,
+      detalle_carga_calidades: [{ id_detalle_carga_calidad: 1, cantidad: 10 }],
+      items_reparto: [{ ...item, id_cliente_receptor: 2,
+        items_reparto_detalle: [{ id_detalle_carga_calidad: 1, cantidad: 10 }],
+      }],
+    }];
+    prisma.detalle_carga.findMany.mockResolvedValue(detalles);
+    return detalles;
+  };
+  it('inicia reparto al guardar la primera recepción en tránsito', async () => {
+    prepararTransito();
+    await service.create(dto(), 1);
+    expect(prisma.operaciones_carga.update).toHaveBeenCalledWith({
+      where: { id_operacion: 7n }, data: { estado: 'repartiendo' },
+    });
+    expect(prisma.entregas.create.mock.invocationCallOrder[0]).toBeLessThan(prisma.operaciones_carga.update.mock.invocationCallOrder[0]);
+  });
+  it('no inicia reparto si la recepción falla al guardarse', async () => {
+    prepararTransito();
+    prisma.entregas.create.mockRejectedValue(new Error('Error al guardar'));
+    await expect(service.create(dto(), 1)).rejects.toThrow('Error al guardar');
+    expect(prisma.operaciones_carga.update).not.toHaveBeenCalled();
+  });
+  it('no inicia reparto con un registro pendiente sin cantidades', async () => {
+    prepararTransito();
+    await service.create({ ...dto(), cantidad_entregada: 0, estado_entrega: 'pendiente' }, 1);
+    expect(prisma.operaciones_carga.update).not.toHaveBeenCalled();
+    expect(prisma.detalle_carga.findMany).not.toHaveBeenCalled();
+  });
+  it('mantiene validación de clasificación y asignación al iniciar automáticamente', async () => {
+    const detalles = prepararTransito();
+    detalles[0].detalle_carga_calidades[0].cantidad = 9;
+    await expect(service.create(dto(), 1)).rejects.toThrow('clasificación y asignación');
+    expect(prisma.entregas.create).not.toHaveBeenCalled();
+    expect(prisma.operaciones_carga.update).not.toHaveBeenCalled();
+  });
+  it('exige guías de todos los destinos pendientes antes del inicio automático', async () => {
+    const detalles = prepararTransito();
+    detalles[0].items_reparto[0].guias_operativas = [];
+    await expect(service.create(dto(), 1)).rejects.toThrow('guías de todos los destinos');
+    expect(prisma.entregas.create).not.toHaveBeenCalled();
+    expect(prisma.operaciones_carga.update).not.toHaveBeenCalled();
   });
   it('rechaza registrar dos veces una entrega completa', async () => {
     item.entregas = [
