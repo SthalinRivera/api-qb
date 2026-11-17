@@ -4,6 +4,7 @@ import { PrismaService } from '../../config/prisma/prisma.service';
 import { CreateGuiaOperativaDto } from './dto/create-guias-operativa.dto';
 import { UpdateGuiaOperativaDto } from './dto/update-guias-operativa.dto';
 import { QueryGuiasOperativasDto } from './dto/query-guias-operativas.dto';
+import { Prisma } from '@prisma/client';
 // Elimina importaciones de CreateGuiaDetalleDto, UpdateGuiaDetalleDto
 
 @Injectable()
@@ -18,13 +19,15 @@ export class GuiasOperativasService {
   }
 
   async emitirOperacion(operacionId: number, itemId?: number) {
+    if (!Number.isSafeInteger(operacionId) || operacionId <= 0 ||
+      (itemId !== undefined && (!Number.isSafeInteger(itemId) || itemId <= 0)))
+      throw new BadRequestException('La operación y el destino deben ser identificadores válidos.');
     return this.prisma.scoped.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${BigInt(operacionId)} AND id_empresa = ${this.prisma.empresaId} FOR UPDATE`;
       const op = await tx.operaciones_carga.findUnique({ where: { id_operacion: operacionId }, include: { empresas: true, camiones: true, usuarios_operaciones_carga_id_repartidor_asignadoTousuarios: true, distritos_operaciones_carga_id_ubigeo_origenTodistritos: true, distritos_operaciones_carga_id_ubigeo_destinoTodistritos: true } });
       if (!op) throw new NotFoundException('Operación no encontrada.');
       if (!['en_transito','repartiendo'].includes(op.estado || '')) throw new BadRequestException('La emisión requiere una carga en tránsito o reparto.');
       const cargas = await tx.detalle_carga.findMany({ where: { id_operacion: operacionId }, include: { detalle_carga_calidades: true, items_reparto: { include: { items_reparto_detalle: true, entregas: true, resoluciones_reparto: true } } } });
-      if (!resumenReparto(cargas).preparada) throw new BadRequestException('Completa y concilia la clasificación y las asignaciones antes de emitir.');
       const items = await tx.items_reparto.findMany({ where: { detalle_carga: { id_operacion: operacionId }, ...(itemId ? { id_item_reparto: itemId } : {}) }, include: {
         clientes: true, puestos: { include: { lugares_operativos: true } }, guias_operativas: true, entregas: true, resoluciones_reparto: true,
         detalle_carga: { include: { frutas: true, variedades: true, tipos_jaba: true, clientes: true } },
@@ -43,6 +46,12 @@ export class GuiasOperativasService {
         if (activas.length) throw new BadRequestException('El destino tiene una guía histórica sin cobertura y saldo pendiente. Revisa el documento antes de emitir otra guía.');
         if (item.entregas.length) throw new BadRequestException('El destino tiene entregas históricas sin guía vigente. Requiere revisión documental.');
         const detalle = item.detalle_carga;
+        const linea = cargas.find(carga => carga.items_reparto.some(destino => destino.id_item_reparto === item.id_item_reparto));
+        if (!linea) throw new BadRequestException('El destino no pertenece a la carga.');
+        const resumen = resumenReparto([linea]);
+        const destino = resumen.lineas[0].destinos.find(destino => destino.id_item_reparto === item.id_item_reparto);
+        if (!destino || destino.destinoIncompleto || destino.desgloseInvalido || resumen.excesosAsignacion || resumen.excesosClasificacion || resumen.excesosCalidad)
+          throw new BadRequestException('Revisa el receptor, puesto y cantidades de este destino antes de emitir su guía.');
         if (item.cantidad_asignada <= 0 || (detalle.es_reparto && item.items_reparto_detalle.reduce((sum, d) => sum + d.cantidad, 0) !== item.cantidad_asignada))
           throw new BadRequestException('Completa el desglose del destino antes de emitir su guía.');
         const cobertura = JSON.parse(JSON.stringify({ version: 1, tipo: 'item_completo',
@@ -72,21 +81,41 @@ export class GuiasOperativasService {
     }, { timeout: 30_000 });
   }
 
-  async findAll(query: QueryGuiasOperativasDto) {
-    const where: any = {};
+  private filtrosListado(query: QueryGuiasOperativasDto): Prisma.guias_operativasWhereInput {
+    const where: Prisma.guias_operativasWhereInput = {};
     if (query.estado) where.estado = query.estado;
     if (query.id_repartidor) where.id_repartidor = query.id_repartidor;
     if (query.fecha_emision) {
       const start = new Date(query.fecha_emision);
       const end = new Date(query.fecha_emision);
-      end.setDate(end.getDate() + 1);
+      end.setUTCDate(end.getUTCDate() + 1);
       where.fecha_emision = { gte: start, lt: end };
     }
-    return this.prisma.scoped.guias_operativas.findMany({
-      where,
-      include: { usuarios: true, items_reparto: true },
-      orderBy: { fecha_emision: 'desc' },
+    return where;
+  }
+
+  async findAll(query: QueryGuiasOperativasDto) {
+    const where = this.filtrosListado(query);
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const [data, total] = await Promise.all([
+      this.prisma.scoped.guias_operativas.findMany({
+        where,
+        include: { usuarios: true, items_reparto: true },
+        orderBy: [{ fecha_emision: 'desc' }, { id_guia: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.scoped.guias_operativas.count({ where }),
+    ]);
+    return { data, total, page, limit };
+  }
+
+  async resumen(query: QueryGuiasOperativasDto) {
+    const grupos = await this.prisma.scoped.guias_operativas.groupBy({
+      by: ['estado'], where: this.filtrosListado(query), _count: { _all: true },
     });
+    return Object.fromEntries(grupos.map(grupo => [grupo.estado || 'sin_estado', grupo._count._all]));
   }
   async findOne(id: number) {
     const guia = await this.prisma.scoped.guias_operativas.findUnique({
@@ -142,7 +171,8 @@ export class GuiasOperativasService {
       const operacionId = ref.items_reparto.detalle_carga.id_operacion;
       await tx.$queryRaw`SELECT id_operacion FROM operaciones_carga WHERE id_operacion = ${operacionId} AND id_empresa = ${this.prisma.empresaId} FOR UPDATE`;
       const op = await tx.operaciones_carga.findUniqueOrThrow({ where: { id_operacion: operacionId } });
-      if (!['en_transito','repartiendo'].includes(op.estado || '')) throw new BadRequestException('La operación no permite cambios documentales.');
+      const firmaTrasEntrega = op.estado === 'completado' && estado === 'firmada' && observaciones === undefined;
+      if (!['en_transito','repartiendo'].includes(op.estado || '') && !firmaTrasEntrega) throw new BadRequestException('La operación no permite cambios documentales.');
       const guia = await tx.guias_operativas.findUniqueOrThrow({ where: { id_guia: id }, include: { entregas: true } });
       if (['anulada','reemplazada'].includes(guia.estado || '')) throw new BadRequestException('Una guía anulada no se puede reabrir.');
       if (estado && !['anulada','observada','firmada'].includes(estado)) throw new BadRequestException('Transición de guía no permitida.');

@@ -101,7 +101,7 @@ describe('Confirmar carga', () => {
       data: { estado: 'repartiendo' },
     });
   });
-  it('sigue exigiendo cobertura de guía para destinos con saldo pendiente', async () => {
+  it('permite iniciar entregas con receptor asignado y guía pendiente', async () => {
     const { service } = setup('en_transito', [{
       ...directa(),
       items_reparto: [{
@@ -115,9 +115,12 @@ describe('Confirmar carga', () => {
       }],
     }]);
 
-    await expect(service.changeState(1, 'repartiendo')).rejects.toThrow(
-      'Emite las guías de todos los destinos',
-    );
+    await expect(service.changeState(1, 'repartiendo')).resolves.toBeDefined();
+  });
+  it('rechaza iniciar entregas sin receptor asignado', async () => {
+    const { service, prisma } = setup('en_transito', [{ ...directa(), items_reparto: [] }]);
+    await expect(service.changeState(1, 'repartiendo')).rejects.toThrow('Asigna al menos un receptor');
+    expect(prisma.operaciones_carga.update).not.toHaveBeenCalled();
   });
   it.each(['repartiendo', 'completado', 'cancelado'])(
     'no vuelve a confirmar %s',

@@ -15,10 +15,18 @@ import { UpdateItemsRepartoDetalleDto } from './dto/update-items-reparto-detalle
 import { CreateItemsRepartoDetalleDto } from './dto/create-items-reparto-detalle.dto';
 import { CreateItemRepartoConDetallesDto } from './dto/create-items-reparto-con-detalles.dto';
 import { CreateItemsRepartoMultipleDto } from './dto/create-items-reparto-multiple.dto';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ItemsRepartoService {
   constructor(private prisma: PrismaService) {}
+
+  private async iniciarEntregaAlAsignar(tx: Prisma.TransactionClient, operacionId: number | bigint) {
+    await tx.operaciones_carga.updateMany({
+      where: { id_operacion: operacionId, estado: 'en_transito' },
+      data: { estado: 'repartiendo' },
+    });
+  }
 
   // ==================== CREAR ÍTEM CON DETALLES ====================
   async createFromCalidades(dto: CreateItemRepartoConDetallesDto) {
@@ -65,7 +73,9 @@ export class ItemsRepartoService {
       const usados = await tx.items_reparto.aggregate({ where: { id_detalle_carga: dto.id_detalle_carga }, _sum: { cantidad_asignada: true } });
       if (dto.cantidad_asignada <= 0 || !Number.isInteger(dto.cantidad_asignada) || (usados._sum.cantidad_asignada || 0) + dto.cantidad_asignada > carga.cantidad_jabas) throw new BadRequestException('La cantidad supera el saldo de la línea.');
       await this.receptorValido(tx, dto.id_cliente_receptor, dto.id_puesto, carga.id_operacion, dto.seccion);
-      return tx.items_reparto.create({ data: { ...dto, id_empresa: carga.id_empresa } });
+      const item = await tx.items_reparto.create({ data: { ...dto, id_empresa: carga.id_empresa } });
+      await this.iniciarEntregaAlAsignar(tx, carga.id_operacion);
+      return item;
     });
   }
 
@@ -174,7 +184,9 @@ export class ItemsRepartoService {
       if (cantidad <= 0 || !Number.isInteger(cantidad) || cantidad + (usados._sum.cantidad_asignada || 0) > carga.cantidad_jabas) throw new BadRequestException('Cantidad fuera del saldo de la línea.');
       if (carga.es_reparto && cantidad !== item.items_reparto_detalle.reduce((sum, d) => sum + d.cantidad, 0)) throw new BadRequestException('Reajusta explícitamente el desglose de calidades.');
       await this.receptorValido(tx, dto.id_cliente_receptor ?? item.id_cliente_receptor, dto.id_puesto ?? item.id_puesto, carga.id_operacion, dto.seccion ?? item.seccion);
-      return tx.items_reparto.update({ where: { id_item_reparto: id }, data: dto });
+      const actualizado = await tx.items_reparto.update({ where: { id_item_reparto: id }, data: dto });
+      await this.iniciarEntregaAlAsignar(tx, carga.id_operacion);
+      return actualizado;
     });
   }
   async remove(id: number) {
@@ -214,7 +226,9 @@ export class ItemsRepartoService {
       if ((otros._sum.cantidad_asignada || 0) + total > carga.cantidad_jabas) throw new BadRequestException('La asignación supera la carga.');
       await tx.items_reparto_detalle.deleteMany({ where: { id_item_reparto: id } });
       for (const d of dto.detalles) await tx.items_reparto_detalle.create({ data: { ...d, id_item_reparto: id, id_empresa: ref.id_empresa } });
-      return tx.items_reparto.update({ where: { id_item_reparto: id }, data: { id_cliente_receptor: dto.id_cliente_receptor, id_puesto: dto.id_puesto, cantidad_asignada: total, observaciones: dto.observaciones, seccion: dto.seccion }, include: { items_reparto_detalle: true } });
+      const actualizado = await tx.items_reparto.update({ where: { id_item_reparto: id }, data: { id_cliente_receptor: dto.id_cliente_receptor, id_puesto: dto.id_puesto, cantidad_asignada: total, observaciones: dto.observaciones, seccion: dto.seccion }, include: { items_reparto_detalle: true } });
+      await this.iniciarEntregaAlAsignar(tx, carga.id_operacion);
+      return actualizado;
     });
   }
 
@@ -500,6 +514,7 @@ export class ItemsRepartoService {
           });
         items.push(item);
       }
+      await this.iniciarEntregaAlAsignar(tx, detalle.id_operacion);
       return items;
     });
   }

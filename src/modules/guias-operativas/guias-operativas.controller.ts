@@ -21,6 +21,11 @@ export class GuiasOperativasController {
     return this.service.findAll(query);
   }
 
+  @Get('resumen')
+  resumen(@Query() query: QueryGuiasOperativasDto) {
+    return this.service.resumen(query);
+  }
+
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.service.findOne(id);

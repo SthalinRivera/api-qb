@@ -65,6 +65,41 @@ describe('Emisión documental', () => {
     expect(guias[0]).toBe(guiaHistorica);
   });
   it('no emite desde preparación', async () => { const {service,prisma} = setup(); prisma.operaciones_carga.findUnique.mockResolvedValue({ estado: 'en_curso' }); await expect(service.emitirOperacion(5)).rejects.toThrow('tránsito'); });
+  it('emite solo el destino seleccionado aunque queden jabas y otros productos sin asignar', async () => {
+    const { service, prisma, item } = setup();
+    prisma.detalle_carga.findMany.mockResolvedValue([
+      { cantidad_jabas: 100, detalle_carga_calidades: [{ id_detalle_carga_calidad: 1, cantidad: 100 }], items_reparto: [item] },
+      { cantidad_jabas: 50, detalle_carga_calidades: [], items_reparto: [] },
+    ]);
+    await service.emitirOperacion(5, 1);
+    expect(prisma.items_reparto.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { detalle_carga: { id_operacion: 5 }, id_item_reparto: 1 },
+    }));
+    expect(prisma.guias_operativas.create).toHaveBeenCalledTimes(1);
+    expect(prisma.guias_operativas.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ id_item_reparto: 1n }),
+    }));
+  });
+  it('no emite un destino sin receptor ni un desglose inconsistente', async () => {
+    const { service, prisma, item } = setup();
+    item.id_cliente_receptor = null;
+    await expect(service.emitirOperacion(5, 1)).rejects.toThrow('Revisa el receptor');
+    item.id_cliente_receptor = 3n;
+    item.items_reparto_detalle[0].cantidad = 9;
+    await expect(service.emitirOperacion(5, 1)).rejects.toThrow('cantidades');
+    expect(prisma.guias_operativas.create).not.toHaveBeenCalled();
+  });
+  it('rechaza un destino de otra operación sin emitir guías', async () => {
+    const { service, prisma } = setup();
+    prisma.items_reparto.findMany.mockResolvedValue([]);
+    await expect(service.emitirOperacion(5, 77)).rejects.toThrow('No hay destinos');
+    expect(prisma.guias_operativas.create).not.toHaveBeenCalled();
+  });
+  it('rechaza un identificador cero sin convertirlo en emisión masiva', async () => {
+    const { service, prisma } = setup();
+    await expect(service.emitirOperacion(5, 0)).rejects.toThrow('identificadores válidos');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
   it('actualiza tránsito al reintentar una emisión con guía vigente', async () => {
     const { service, prisma, item } = setup();
     item.guias_operativas = [{ id_guia: 8n, estado: 'emitida', cobertura: { cantidad: 10 } }];

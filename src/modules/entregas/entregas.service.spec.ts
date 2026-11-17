@@ -143,19 +143,19 @@ describe('EntregasService: secuencia y saldos', () => {
     expect(prisma.operaciones_carga.update).not.toHaveBeenCalled();
     expect(prisma.detalle_carga.findMany).not.toHaveBeenCalled();
   });
-  it('mantiene validación de clasificación y asignación al iniciar automáticamente', async () => {
+  it('recibe con cobertura vigente aunque la carga completa tenga clasificación pendiente', async () => {
     const detalles = prepararTransito();
     detalles[0].detalle_carga_calidades[0].cantidad = 9;
-    await expect(service.create(dto(), 1)).rejects.toThrow('clasificación y asignación');
-    expect(prisma.entregas.create).not.toHaveBeenCalled();
-    expect(prisma.operaciones_carga.update).not.toHaveBeenCalled();
+    await expect(service.create(dto(), 1)).resolves.toBeDefined();
+    expect(prisma.entregas.create).toHaveBeenCalled();
+    expect(prisma.detalle_carga.findMany).not.toHaveBeenCalled();
   });
-  it('exige guías de todos los destinos pendientes antes del inicio automático', async () => {
+  it('recibe sin exigir guías de otros destinos pendientes', async () => {
     const detalles = prepararTransito();
     detalles[0].items_reparto[0].guias_operativas = [];
-    await expect(service.create(dto(), 1)).rejects.toThrow('guías de todos los destinos');
-    expect(prisma.entregas.create).not.toHaveBeenCalled();
-    expect(prisma.operaciones_carga.update).not.toHaveBeenCalled();
+    await expect(service.create(dto(), 1)).resolves.toBeDefined();
+    expect(prisma.entregas.create).toHaveBeenCalled();
+    expect(prisma.detalle_carga.findMany).not.toHaveBeenCalled();
   });
   it('rechaza registrar dos veces una entrega completa', async () => {
     item.entregas = [

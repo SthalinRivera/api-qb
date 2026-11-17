@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { ModulosService } from './modulos.service';
 import { CreateModuloDto } from './dto/create-modulo.dto';
 import { UpdateModuloDto } from './dto/update-modulo.dto';
+import { ReorderModulosDto } from './dto/reorder-modulos.dto';
 
 @ApiTags('Módulos')
 @Controller('modulos')
@@ -26,6 +27,12 @@ export class ModulosController {
     @ApiOperation({ summary: 'Listar módulos por categoría' })
     findByCategoria(@Param('idCategoria', ParseIntPipe) idCategoria: number) {
         return this.modulosService.findByCategoria(idCategoria);
+    }
+
+    @Patch('reorder')
+    @ApiOperation({ summary: 'Reordenar módulos' })
+    reorder(@Body() dto: ReorderModulosDto) {
+        return this.modulosService.reorder(dto);
     }
 
     @Get(':id')

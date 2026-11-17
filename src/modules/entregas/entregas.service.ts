@@ -1,5 +1,4 @@
 import { validarEntrega } from './validar-entrega';
-import { validarInicioReparto } from '../operaciones-carga/validar-inicio-reparto';
 
 import {
   Injectable,
@@ -148,15 +147,6 @@ export class EntregasService {
       if (createDto.cantidad_entregada + (createDto.cantidad_rechazada || 0) > cobertura.cantidad - recibidoGuia)
         throw new BadRequestException('La entrega excede la cobertura pendiente de la guía.');
       const iniciarReparto = operacion.estado === 'en_transito' && createDto.estado_entrega !== 'pendiente';
-      if (iniciarReparto) {
-        const detalles = await tx.detalle_carga.findMany({
-          where: { id_operacion: operacion.id_operacion },
-          include: { detalle_carga_calidades: true, items_reparto: { include: {
-            items_reparto_detalle: true, entregas: true, guias_operativas: true, resoluciones_reparto: true,
-          } } },
-        });
-        validarInicioReparto(detalles);
-      }
       const entrega = await tx.entregas.create({
         data: {
           id_empresa: item.id_empresa,
@@ -232,15 +222,23 @@ export class EntregasService {
       end.setDate(end.getDate() + 1);
       where.fecha_entrega = { gte: start, lt: end };
     }
-    return this.prisma.scoped.entregas.findMany({
-      where,
-      include: {
-        guias_operativas: true,
-        items_reparto: true,
-        usuarios: true,
-      },
-      orderBy: { fecha_entrega: 'desc' },
-    });
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const [data, total] = await Promise.all([
+      this.prisma.scoped.entregas.findMany({
+        where,
+        include: {
+          guias_operativas: true,
+          items_reparto: true,
+          usuarios: true,
+        },
+        orderBy: [{ fecha_entrega: 'desc' }, { id_entrega: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.scoped.entregas.count({ where }),
+    ]);
+    return { data, total, page, limit };
   }
 
   async findTransitPending(query: QueryEntregasDto) {

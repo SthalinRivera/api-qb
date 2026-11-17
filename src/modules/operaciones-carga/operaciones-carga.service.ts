@@ -1,7 +1,6 @@
 import { clienteValido, destinosDisponibles, usuarioValido, validarReceptor } from '../opciones-flujo/reglas-opciones';
 import { validarTransicion } from './estados-operacion';
 import { resumenReparto } from './resumen-reparto';
-import { validarInicioReparto } from './validar-inicio-reparto';
 import { exigirSupervisor } from '../../common/security/request-context';
 // operaciones-carga.service.ts
 import {
@@ -195,7 +194,9 @@ export class OperacionesCargaService {
       validarTransicion(op.estado, newState);
       if (newState === 'en_curso' && !op.detalle_carga.length) throw new BadRequestException('Agrega un producto para iniciar la carga.');
       const resumen = resumenReparto(op.detalle_carga);
-      if (newState === 'repartiendo') validarInicioReparto(op.detalle_carga);
+      if (newState === 'repartiendo' && !op.detalle_carga.some(detalle =>
+        detalle.items_reparto.some(item => item.id_cliente_receptor && item.id_puesto && item.cantidad_asignada > 0),
+      )) throw new BadRequestException('Asigna al menos un receptor y puesto antes de iniciar las entregas.');
       if (newState === 'completado') {
         exigirSupervisor();
         if (!resumen.conciliada) throw new BadRequestException({ message: 'La carga no está conciliada.', resumen });
@@ -390,7 +391,7 @@ export class OperacionesCargaService {
     return pendientesConSaldo;
   }
 
-  async generarGuias(operacionId: number) {
-    return this.guiasService.emitirOperacion(operacionId);
+  async generarGuias(operacionId: number, itemId?: number) {
+    return this.guiasService.emitirOperacion(operacionId, itemId);
   }
 }

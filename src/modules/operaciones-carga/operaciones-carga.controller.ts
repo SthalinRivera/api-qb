@@ -96,6 +96,11 @@ export class OperacionesCargaController {
     return this.service.generarGuias(id);
   }
 
+  @Post(':id/destinos/:itemId/emitir-guia')
+  emitirGuiaDestino(@Param('id', ParseIntPipe) id: number, @Param('itemId', ParseIntPipe) itemId: number) {
+    return this.service.generarGuias(id, itemId);
+  }
+
   @Put(':id/detalles/orden')
   reordenar(@Param('id', ParseIntPipe) id: number, @Body() dto: ReordenarCargaDto) {
     return this.detalleService.reordenar(id, dto.ids);
